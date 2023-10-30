@@ -2,7 +2,7 @@
 
 ### UC Berkeley 
 [OSDI '22] AIpa
-[OSDI '23] AIpaServe
+[OSDI '23] AlpaServe: Statistical Multiplexing with Model Parallelism for Deep Learning Serving 
 
 
 ### SJTU - 上海交通
