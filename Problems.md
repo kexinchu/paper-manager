@@ -34,7 +34,7 @@
 - 编译时利用计算图中的算子关系，可以从输出的tile，推出执行过程中tile的配置信息和输入tensor。
 - 问题： 提到了**复用GPU共享内存**
 
-[OSDI '22]
+## [OSDI '22]
 #### Orca: A Distributed Serving System for Transformer-Based Generative Models
 - 首尔大学
 - 解析：https://zhuanlan.zhihu.com/p/541704684
@@ -72,6 +72,7 @@
 - 提供了一种面向多租户集群的DNN任务调度器，在传统调度器的基础上将任务对CPU及内存资源分配的敏感度纳入考虑，从而更好的分配和利用现有的集群资源，提高平均任务完成时间。
 - 问题：当前的集群调度器都假定GPU为调度任务的主要资源，然而CPU、内存等其他资源只是根据GPU数量按比例分配(GPU-proportional allocation), 但是对于不同的DNN训练任务，其对CPU，内存等资源表现出不同的敏感度 （注：文章通过实验证明了大部分语言模型对于CPU分配不敏感，因为语言模型对输入数据的预处理的要求相对较少）
 - 利用敏感分配：这里分配的资源是指CPU，内存等除了GPU之外的硬件资源
+
 #### Roller: Fast and Efficient Tensor Compilation for Deep Learning
 - Microsoft Research
 - 解析： https://zhuanlan.zhihu.com/p/541292053
@@ -93,13 +94,16 @@
   - （5）流水线并行（Pipeline parallelism），探索在不同的训练迭代之间的并行机会。
   - （6）操作特定的并行（Operator-specific parallelism），一些新的DNN操作会带来一些并行的机会。
 - 在一些场景下，不合并算子，反而能够带来更好的规约并行结果：
-![Alt text](image.png)
+![Alt text](pictures/image.png)
 
-[OSDI '21]
+## [OSDI '21]
+#### Pollux: Co-adaptive Cluster Scheduling for Goodput-Optimized Deep Learning
+- 分布式深度学习集群调度问题 - 更好的为深度学习任务分配硬件资源来达到最佳效果(超参数)
+- Pollux提出goodput的概念，结合了throughput与模型收敛速率两个指标，是一种系统研究中很经典的全局优化的思路,跟2020年的Kungfu
+- 基于假设：deep learning训练的任务在给定的独占计算资源下，性能表现非常可预测. 作者构建一个cost model作为协同优化的指导
 
 
-
-[OSDI '20]
+## [OSDI '20]
 #### A Unified Architecture for Accelerating Distributed DNN Training in Heterogeneous GPU/CPU Clusters
 - ByteDance & Tsinghua University
 - https://zhuanlan.zhihu.com/p/529364947
@@ -123,16 +127,16 @@
   - Memory Allocation
   - Model Transmission，即将DNN模型从Host Memory拷贝到Device Memory
 - 深度神经网络都具有层级结构，每一层进行前向计算时只需要知道上一层的输出以及当前层的结构以及参数，不需要知道后面网络层的信息。因此可以使用经典的流水线（pipeline）技术来优化，即按照神经网络的layer顺序进行内存拷贝，拷贝好的layer可以直接进行计算。如果简单的使用per-layer的方法进行pipeline会导致每次拷贝完一层后的synchronization带来太大的开销，作者针对这一问题也提出了对layer进行group（batch）的方法，并给出了寻找最优的group组合的算法。
-![Alt text](image-1.png)
+![Alt text](pictures/image-1.png)
 - 除了内存拷贝的开销，上线文切换还有一大部分开销来自于CUDA环境的清理和初始化，PipeSwitch提出了Active-Standby Worker方法，用多个常驻的进程作为Worker，能够在保证进程级别隔离的前提下，避免上下文切换时任务清理和初始化的开销；同时，PipeSwitch使用了统一的内存管理来降低内存分配的开销。
 
 #### HiveD: Sharing a GPU Cluster for Deep Learning with Guarantees
 - Peking University & Microsoft
 - 解决的问题：租户在GPU集群上进行深度学习的训练是一种目前较为常见的使用场景。然而，由于目前GPU集群上的资源分配方式是基于quota的，即每个任务指定所需要使用GPU的数目，导致会出现即使分配了足够的GPU数目，也会导致该任务的等待时间或者执行时间大幅下降，该现象被称为共享异常（Sharing anomaly）
 - 原因：因为仅仅指定GPU的数目是不够的。由于不同用户随时可能会要求分配或者释放GPU数目，就会导致出现大量的外部碎片（external fragmentation）。这个外部碎片的概念与内存分配中的概念类似，即随着分配、释放的次数变多，大量的GPU数目可能会变成跨CPU socket、甚至是跨机器。如下图所示，同样是分配2个GPU，如果是跨PCI-e、跨机器，将会分别带来40%和5倍的性能下降。因此，造成了虽然分配了足够的GPU，但是还是会导致性能的大幅下降。同时，由于会有许多1个GPU资源的请求，导致多资源的请求不能很快得到满足。
-![Alt text](image-2.png)
+![Alt text](pictures/image-2.png)
 - 为了解决上述的外部碎片的问题，HiveD提供了一层被称为VC（虚拟集群）的抽象，让用户更加细粒度的去指定GPU的分配方式，像是在私有集群上进行分配一样，这个目标被称为sharing safety。同时也用了buddy cell allocation的机制，其中cell是指不同层次的GPU资源。其中Level-1到level-5分别是指单个GPU、共享PCI-e的一组GPU、共享CPU socket的一组GPU、同一机器上的GPU、同一机架的GPU。这样，通过制定不同层次的cell数目，来进行虚拟的GPU资源分配，同时映射到物理资源分配，如下图所示。Buddy让人联想到内存分类的buddy allocation，事实上，两者确实是类似的机制。也即在申请Level-k的cell时，如果该level的空闲队列中有空闲资源，则直接分配，否则递归地从Level-(k+1)中拿出一块来进行分裂，并将剩余分裂后的空闲资源放入level-k的空闲队列中。这样能够保证资源分配的局部性。同时，在资源回收的时候，也会去递归地查看是否能够将空闲资源从level-k合并为level-(k+1)。
-![Alt text](image-3.png)
+![Alt text](pictures/image-3.png)
 
 #### AntMan: Dynamic Scaling on GPU Clusters for Deep Learning
 - Alibaba
@@ -141,7 +145,97 @@
 #### Ansor: Generating High-Performance Tensor Programs for Deep Learning
 - Lianmin Zheng UC Berkeley
 - https://zhuanlan.zhihu.com/p/529370952
-- 问题：面向DNN的编译问题：依赖硬件厂商提供的高度优化过的计算库(like cuDNN)；这依赖专家coder来实现，并限制了新operatoe
+- 问题：面向DNN的编译问题：依赖硬件厂商提供的高度优化过的计算库(like cuDNN)；这依赖专家coder来实现，并限制了新operator的开发和计算硬件的使用. 现有的Tensor Compiler由编译器根据硬件特性进行自动优化并生成硬件代码；但是普遍搜索空间较小 - 将算子处理成顺序执行的小operation
+- 一个tensor计算程序自动优化和自动生成的框架。Ansor主要从两个方面去提升tensor计算程序优化的效果，第一是使得优化的搜索空间足够大，第二是提高搜索的效率和优化搜索策略，使得在很大的搜索空间里能够快速正确地搜索到性能较优的计算程序。
+  - 首先，为了使程序优化的搜索空间足够大，Ansor提出了two-level hierarchical search space，分成了high-level structure generation（sketch）和low-level detail sampling（annotation）两个层次。
+  ![Alt text](pictures/image-4.png)
+
+#### Rammer: Enabling Holistic Deep Learning Compiler Optimizations with rTasks
+- Peking University & Microsoft Research
+- 问题：在现有深度学习框架中，操作符间并行(matmul, Convd)主要由深度学习框架中的数据流图调度器进行调度；而操作符内并行主要有底层硬件计算库中的硬件调度器进行调度。作者认为这种结构忽略了操作符间并行和操作符内并行之间的相互影响。
+- Rammer系统：将操作符间并行和操作符内并行进行综合考虑，作为一个整体进行调度
+  - 虚拟化并行设备的抽象，通过将硬件中的执行单元抽象为虚拟并行设备中的虚拟执行单元，来更好的管理硬件中的细粒度调度能力。
+  - 为了解决细粒度调度带来的巨额开销，Rammer基于观察：深度学习中的各个操作符的执行时间是编译时可预测的(误差在7%以内), 选择在编译器阶段沈城执行调度，这样可以大大减少模型执行的调度开销
+
+#### KungFu: Making Training in Distributed Machine Learning Adaptive
+- Imperial College London
+- 实现高效的训练时自动调参
+  - 很多工作在执行时，通过checkpoint的方式来调整提供参数，这会使得系统需要restart，引入非常大的adaptive延迟
+- 思路：再生成计算图的时候就将adaption的流程放到计算图中去
+
+
+## [MLSys '23]
+#### Efficiently Scaling Transformer Inference
+- Jeff Dean
+- https://zhuanlan.zhihu.com/p/660715870
+- 问题：针对LLM推理应用：1延迟敏感的在线推理 + 2追求高吞吐低成本的离线推理。大模型推理可以分解为处理prompt的的阶段（prefill）和自回归生成输出标记解阶段（Decoding）。二者性质不同，前者是计算密集型的，后者是访存密集型的。尤其是，Decoding阶段以难以优化而臭名昭著。因为每次只能解码一个token，计算量本来就很小，还需要访问一个随着解码步数增加而不断累计KVCache，因此严重受限于加速卡的片上带宽.
+- 关注并行策略
+- 第一个内容：经验性结论：在不同的Batch Size, 模型尺寸，芯片数量下，最优的模型切分策略应该是不同的；如下图
+![Alt text](pictures/batch-chip-latency.png)
+- 第一个内容：Partitioning Framework：提出了一套表示并行化的抽象符号体系：用来表示Tensor layout 和 device mesh的映射。(**没咋理解，还需要深读论文**)；总之提供了一套数学公式来更好的表示tensor粒度的split和计算所需要的通信量。
+  - 1）Shard表示：使用下标来指定被shard的张量维度。例如，符号BLE_xyz表示逻辑形状为BLE的张量的最后一个维度E被分割成X × Y × Z个分区，其中x、y和z表示物理TPU v4轴，每个芯片的张量形状为[B，L，E/(X × Y × Z)]。
+  - 2）Replicated表示：如果一个张量在轴x上被replicated存储，那么该轴将在符号中被省略。
+  - 3）Partial表示：后缀“partialsum-x”来表示给定的张量已经在每个芯片上locally地进行了处理（concate或sum），但仍需要在TPU x轴上对芯片进行求和才是最终结果。
+- FFN 并行方法
+  - 可行的有三种：1D-weight就是Megatron-LM中的FFN并行方法，用一个column-wise+row-wise TP，forward只需要Allgather+ReduceScatter两次通信。后两者大大家不常见，它对weight的两个维度都进行partition，对2D对activation最低维度切分，weight-gather则对最低和最高维度分别切分。值得注意的是，作者对L维度没有切分。
+ ![Alt text](pictures/ffn-layer-parallel.png)
+- Attention Layer 并行方法
+  ![Alt text](pictures/attention-layer-parallel.png)
+  - MQA减少了访存，但是增加了并行通信开销
+- 进行了模型架构微调：与GPT结构不同，PaLM中对FFN和Attention Layer的操作是并行的(algorithm层面)
+- Low-level设计：Looped CollectiveEinsum技术，是的通信和计算同时进行，简单来说就是把矩阵乘法和通信分块流式起来，隐藏通信开销。
+
+#### [ASPLOS '23] Overlap Communication with Dependent Computation via Decomposition in Large Deep Learning Models
+- Looped CollectiveEinsum技术，是的通信和计算同时进行，简单来说就是把矩阵乘法和通信分块流式起来，隐藏通信开销。
+
+
+
+
+
+
+### Nvidia Megatron 系列
+[ '20]
+
+
+[MLSys '23] Reducing Activation Recomputation in Large Transformer Models 
+
+
+
+
+
+
+
+- 别人的总结 https://www.cvmart.net/community/detail/5655
+
+|年份|会议|题目|方案|备注|
+|--|--|--|--|--|
+|2016|MICRO|VDNN|转移|第一篇转移到Host Memory的工作|
+|2016|arXiv|Checkpoint|重计算|第一篇重计算|
+|2018|DATE|moDNN|转移|考虑不同卷积函数的性能|
+|2018|PPoPP|SuperNeurons|转移+重计算|第一篇转移+重计算|
+|2018|HPCA|cDMA|转移+压缩|硬件对ReLU输出层压缩 - ReLU输出是稀疏化的|
+|2019|IPDPS|vDNN++|转移+压缩|针对vDNN的性能问题进行解决|
+|2020|ASPLOS|AutoTM|转移|NVM+DRAM的暴力搜索|
+|2020|ASPLOS|SwapAdvisor|转移|启发式搜索+GPU碎片问题|
+|2020|ASPLOS|Capuchin|转移+重计算|转移+重计算的较为优秀的方案|
+|2021|FAST|FlashNeuron|转移|引入SSD转移|
+|2021|ATC|ZeRO-Offload|转移|利用CPU的计算能力|
+|2021|CLUSTER|CSWAP|转移+压缩|对稀疏数据进行选择性压缩，最优化性能|
+|2021|HPCA|Sentinel|转移|NVM+DRAM场景，考虑细粒度Page上的数据情况|
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -215,3 +309,6 @@
 - 方法是否是仅针对LLM；需要一个强力的motivation: why we do this?
   - LLM vs LLM
   - LLM vs DNN
+
+- 备注：
+  - 自助切分LLM进行硬件搜索，由于Transormer的结构是每一层都在重复，可以做好剪枝，复用结果
