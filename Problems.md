@@ -191,16 +191,22 @@
 
 
 
-
-
 ### Nvidia Megatron 系列
 [ '20]
 
 
 [MLSys '23] Reducing Activation Recomputation in Large Transformer Models 
-
-
-
+- 探索如何在Transformer上做checkpointing更高效 (参考这一篇分析)
+  - 结合sequence parallelism 和 tensor parallelism
+  - 挑一些性价比高的activation来做checkpointing
+  - 结果：与Meatron-2相比，1T的大模型，将使用的GPU数量从3072块GPU降到了512块。
+- Sequence Prallelism
+  - Megatron在他们的Tensor Parallelism的基础上，将Transformer核的LayerNorm以及Dropout层的输入按Sequence Length维度进行了切分，使得各个设备上面只需要做一部分的Dropout和LayerNorm即可。
+  ![Alt text](image.png)
+  - 下图是Coolossal-AI的Sequence Parallelism思路，可以看出：两者并不相同; 对于Megatron 3而言，是将Transfermor核的LayerNorm以及Dropout层的输入按照Sequence Length的维度进行了切分，使得每个设备上只需要做一部分的Dropout和LayerNorm计算; 好处如下：
+    - 1. LayerNorm和Dropout的计算被平摊到了各个设备上，减少了计算资源的浪费；
+    - 2. LayerNorm和Dropout所产生的激活值也被平摊到了各个设备上，进一步降低了显存开销。
+  ![Alt text](image-1.png)
 
 
 
