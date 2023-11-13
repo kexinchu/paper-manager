@@ -209,6 +209,30 @@
   ![Alt text](image-1.png)
 
 
+### LLM Training System
+#### Single GPU System
+[arXiv '22]CRAMMING: Training a Language Model on a Single GPU in One Day (https://arxiv.org/pdf/2212.14034.pdf)
+- Insitution: University of Maryland, College Park
+- 关键词：按比例缩小的模型预训练 是否能作为 大模型预训练的可行模拟，总结了包括数据处理等在内的一些trick技巧，并针对多个大模型进行了评估
+
+[NAACL '22]Easy and Efficient Transformer : Scalable Inference Solution For large NLP model (arXiv'22)
+- 网易
+- Most inference frameworks, such as FT(v3.1) and LightSeq, have implemented kernels that restrict the model size and input length up to 1024, leading to limited availability. we propose to use several blocks to simulate a large block.
+![Alt text](image-4.png)
+- Cache reuse
+  - Weights and KV-Cache need be stored for future
+  - But activations are useless after passed to next layer. So these part of memory can be reused.
+
+[arXiv '23]ByteTransformer: A High-Performance Transformer Boosted for Variable-Length Inputs (https://arxiv.org/pdf/2210.03052.pdf)
+- 关键词: variable-length sequence + fused calculation
+- Proposed a padding-free algorithm that packs the input tensor with variable-length sequences and calculates the positioning offset vector for all transformer operations to index, which keeps the whole transformer pipeline free from padding and calculations on zero tokens.
+![Alt text](image-2.png)
+- Proposed a fused Multi-Head Attention (MHA) to alleviate the memory overhead of the intermediate matrix, which is quadratic to the sequence length, in MHA without introducing redundant calculations due to padding for variable-length inputs. Part of our fused MHA has been deployed in the production code base of NVIDIA CUTLASS.
+
+
+
+[arXiv '23]A Survey on Efficient Training of Transformers(https://arxiv.org/pdf/2302.01107.pdf)
+- 
 
 
 - 别人的总结 https://www.cvmart.net/community/detail/5655
@@ -230,9 +254,28 @@
 |2021|HPCA|Sentinel|转移|NVM+DRAM场景，考虑细粒度Page上的数据情况|
 
 
+# Offload && Prefetch
+- 目标：Reduce the memory footprint of the model by using fewer GPU devices and less GPU memory (你只有少量的GPU设备)
+## 相关的论文有
+[ICML '23]FlexGen: High-throughput Generative Inference of Large Language Models with a Single GPU
+- Paper: https://arxiv.org/pdf/2303.06865.pdf
+- Institution: Standford, Ying Sheng
+- Sorce Code: https://github.com/FMInference/FlexGen
+- 关键词: 针对单/多GPU跑LLM Inference，并且通过并行化策略，memory hierarchy 的设计实现一个极端强调throughput的系统设计
+- 并行策略：
+  - 解决什么问题：解决LLM Inference场景下 seq token 生成过程中时序依赖导致的并发度不足的问题
+  - 怎么解决：不再考虑一次性完成整个batch的方案(相互依赖)，转而考虑batch间的并行： 每次GPU仅计算一个layer，通过pipeline的方式overlap的prefetch输入并offload KV-Cache，activation，weights，流水线式的计算多个mini-batch
+  ![Block Schedule with Overlapping](image-3.png)
+
+[SC '20]ZeRO: Memory optimizations Toward Training Trillion Parameter Models
+- Paper: https://arxiv.org/pdf/1910.02054.pdf
+- Institution: Microsoft
+- Source Code:
+- 关键词: 
 
 
-
+# Parallelism Strategies
+- Apply various parallelism to scale up the model across a large number of GPUs (你有多个GPU设备)
 
 
 
@@ -311,10 +354,8 @@
 
 - 充分考虑下不同的scheduling strategy, 是否会造成不同的问题？
   - DRAM usage
+  - 不同的parallelism下Tensor的机构会不同，做实验确认下这块的影响
 
-- 方法是否是仅针对LLM；需要一个强力的motivation: why we do this?
-  - LLM vs LLM
-  - LLM vs DNN
 
 - 备注：
   - 自助切分LLM进行硬件搜索，由于Transormer的结构是每一层都在重复，可以做好剪枝，复用结果
