@@ -163,7 +163,6 @@
   - 很多工作在执行时，通过checkpoint的方式来调整提供参数，这会使得系统需要restart，引入非常大的adaptive延迟
 - 思路：再生成计算图的时候就将adaption的流程放到计算图中去
 
-
 ## [MLSys '23]
 #### Efficiently Scaling Transformer Inference
 - Jeff Dean
@@ -192,21 +191,36 @@
 
 
 ### Nvidia Megatron 系列
-[ '20]
+- Open Source Code: https://github.com/NVIDIA/Megatron-LM
 
+[Arxiv '20] Megatron-lm: Training multi-billion parameter language models using model parallelism
+- Paper: https://arxiv.org/pdf/1909.08053.pdf
+- Key Point: implement a simple and efficient **intra-layer model parallel approach** that enables training transformer models with billions of parameters.
+- Try To Solve
+- Motivation
+- Solutions
+
+[SC '21] Efficient Large-Scale Language Model Training on GPU Clusters Using Megatron-LM
+- Paper: https://arxiv.org/pdf/2104.04473.pdf
+- Key Point
+- Try To Solve
+- Motivation
+- Solutions 
 
 [MLSys '23] Reducing Activation Recomputation in Large Transformer Models 
+- 与前两篇的不同
+  - 1
 - 探索如何在Transformer上做checkpointing更高效 (参考这一篇分析)
   - 结合sequence parallelism 和 tensor parallelism
   - 挑一些性价比高的activation来做checkpointing
   - 结果：与Meatron-2相比，1T的大模型，将使用的GPU数量从3072块GPU降到了512块。
 - Sequence Prallelism
   - Megatron在他们的Tensor Parallelism的基础上，将Transformer核的LayerNorm以及Dropout层的输入按Sequence Length维度进行了切分，使得各个设备上面只需要做一部分的Dropout和LayerNorm即可。
-  ![Alt text](image.png)
+  ![Alt text](pictures/megatron-LM-Fig%205.png)
   - 下图是Coolossal-AI的Sequence Parallelism思路，可以看出：两者并不相同; 对于Megatron 3而言，是将Transfermor核的LayerNorm以及Dropout层的输入按照Sequence Length的维度进行了切分，使得每个设备上只需要做一部分的Dropout和LayerNorm计算; 好处如下：
     - 1. LayerNorm和Dropout的计算被平摊到了各个设备上，减少了计算资源的浪费；
     - 2. LayerNorm和Dropout所产生的激活值也被平摊到了各个设备上，进一步降低了显存开销。
-  ![Alt text](image-1.png)
+  ![Alt text](pictures/sequence-parallelism-Coolossal-AI.png)
 
 
 ### LLM Training System
@@ -218,7 +232,7 @@
 [NAACL '22]Easy and Efficient Transformer : Scalable Inference Solution For large NLP model (arXiv'22)
 - 网易
 - Most inference frameworks, such as FT(v3.1) and LightSeq, have implemented kernels that restrict the model size and input length up to 1024, leading to limited availability. we propose to use several blocks to simulate a large block.
-![Alt text](image-4.png)
+![Alt text](pictures/easy-and-efficient-transformer-fig1.png)
 - Cache reuse
   - Weights and KV-Cache need be stored for future
   - But activations are useless after passed to next layer. So these part of memory can be reused.
@@ -226,7 +240,7 @@
 [arXiv '23]ByteTransformer: A High-Performance Transformer Boosted for Variable-Length Inputs (https://arxiv.org/pdf/2210.03052.pdf)
 - 关键词: variable-length sequence + fused calculation
 - Proposed a padding-free algorithm that packs the input tensor with variable-length sequences and calculates the positioning offset vector for all transformer operations to index, which keeps the whole transformer pipeline free from padding and calculations on zero tokens.
-![Alt text](image-2.png)
+![Alt text](pictures/bytedance-ziro-padding.png)
 - Proposed a fused Multi-Head Attention (MHA) to alleviate the memory overhead of the intermediate matrix, which is quadratic to the sequence length, in MHA without introducing redundant calculations due to padding for variable-length inputs. Part of our fused MHA has been deployed in the production code base of NVIDIA CUTLASS.
 
 
@@ -265,7 +279,7 @@
 - 并行策略：
   - 解决什么问题：解决LLM Inference场景下 seq token 生成过程中时序依赖导致的并发度不足的问题
   - 怎么解决：不再考虑一次性完成整个batch的方案(相互依赖)，转而考虑batch间的并行： 每次GPU仅计算一个layer，通过pipeline的方式overlap的prefetch输入并offload KV-Cache，activation，weights，流水线式的计算多个mini-batch
-  ![Block Schedule with Overlapping](image-3.png)
+  ![Block Schedule with Overlapping](pictures/flexgen-parallelism-and-algorithm.png)
 
 [SC '20]ZeRO: Memory optimizations Toward Training Trillion Parameter Models
 - Paper: https://arxiv.org/pdf/1910.02054.pdf
@@ -345,6 +359,7 @@
 ### Week5 留下的问题
 - LLM的特征
   - why transfermer层的 QKVO 是[h,h]
+    - determined by architectures;
   - 训练时，是否所有tensor是equal access? (weight/input/intermediate)
     - DNN 因为存在随机mask过程(预防overfit)，会有数据上的hot data 和 cold date，这个是否在LLM中也有？
 
