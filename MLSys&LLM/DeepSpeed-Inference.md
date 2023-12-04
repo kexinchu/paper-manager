@@ -70,4 +70,21 @@ Implement a efficient Transfermer Inference.
 
 - ZeRO Inference
   - Build on the offloading techniques of ZeRO-Infinity
-  - 
+
+- ZeRO Infinity
+  - By using GPU, CPU and NVMe memory, to allow for unprecedented model scale on limited resources.
+    - Compare to limited GPU memory, the CPU memory and massive NVMe storage is over 3X and 50x larger.
+    - DGX-2 cluster node: each node contains 16 fully connected GPUs  
+    ![Alt text](./pictures/ZeRO-Infinity-memory_requirement_and_DGX-2_resources.jpeg)
+  - Motivation & Details:
+    - Challenge: with the model size increase, How to training bigger models with limited resources and optimize the throughput.
+    - Solution: Oflload and Prefetch different part of data from GPU to optimize the utilization of GPU Memory
+      - Memory Category:
+        - Model States: optimizer states, gradients, and weight parameters
+        - activations/intermediated data
+      - Details:
+        - Infity Offload Engine: offload model parameters to CPU memory or NVMe
+        - activation checkpoint (recompute): for some layer which consume a large memory storage with limited execution.
+        - Memory-centric tiling: Split a large operator into small tiles that can be sequentially execused.
+          - Like 1D parallelism but all the splited part was executed on similer GPU device
+          - use offload and prefetch to optimize the GPU memory utilization
