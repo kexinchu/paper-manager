@@ -24,7 +24,7 @@ Source code: https://github.com/SNU-ARC/flashneuron
 - Review资料
   - CPU到DRAM： CPU ->(内存总线-前端总线)-> 北桥 ->(内存总线-后端总线)-> DRAM
   - GPU到CPU: GPU-PCIe -> 北桥 -> 内存总线(后端总线) -> DRAM
-![Alt text](image.png)
+<img src="./pictures/Computer-Bandwidth-Architecture.png" width="600px">
 
 ####  Motivations
 - Use GPU-SSD direct communication to solve the bandwidth contents.
@@ -32,7 +32,7 @@ Source code: https://github.com/SNU-ARC/flashneuron
  
 #### Designs
 ##### 1, Overview
-![Alt text](image-1.png)
+<img src="./pictures/Flashneuron-Overview.png" width="400px">
 
 ##### 2, Memory Manager
 - Tensor Allocation & Deallocation Criterias:

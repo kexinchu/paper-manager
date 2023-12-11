@@ -1,12 +1,6 @@
-## Latency Sensitive
-
-
-## Throughput orient
-
-
-
 ## Memory
 ### KV-Cache
+
 #### Within GPU Memory
 - PageAttention(vLLM)
 
@@ -14,26 +8,63 @@
 - FlexGen
 - Zero-Inference
 
+### Prompt Cache
+- reuse the prompts across different inserted prompts
+
+### Question 2 Reuse of the pre-request's KV-Cache
+- Here Use the NVIIDA T4 AS the sample GPU
+- the parameters for T4 (https://www.nvidia.com/en-us/data-center/tesla-t4/)
+
+|Cate|Parameters|
+|:--|:--|
+|GPU Arch|NVIDIA Turing|
+|Tensor Cores|320|
+|CUDA Cores|2560|
+|Mixed Precision(FP16/FP32)|65 TFLOPS|
+|INT8|130 TFLOPS|
+|GPU Memory|16GB GDDR6 300GB/s|
+|InterConn bandwidth|32 GB/s|
+|System Interface|x16 PCIe Gen3 15.8GB/s for single direction|
+
+- Compare the Execution Latency and the Communication Latency
+    - for single layer & pre-processing; 
+    - the next layer also require the provior token
+
+|Module|Excution Latency(ms)|Comunication Latency(ms)|
+|:--|:--|:--|
+|GPT-2 1.5B, hidden_size=1600|0.0824|0.0188|
+|Llama2-7B, hidden_size=4096|0.54|0.048|
+|Llama2-70B, hidden_size=4096 with GQA|0.54|0.048|
+
 
 ## Continue Batch
+
 ### Problems: 
 - For LLM Inference, have a multi-iteration token genetion stage
 - For requests in single batch, the early finished requests need to wait for all the other requests.
 - New request need to wait the prior batch finished
 
-### My Original Thinking:
+### Motivation:
+- Observations:
 1, the Inference can be split into two part: pre-processing and token-generation; and they require different resources.
-![Alt text](./pictures/FastServe-two_phrases_of_LLM_inference.png)
+<img src="./pictures/FastServe-two_phrases_of_LLM_inference.png" width="400px">
+2, the pre-processing excution need more time, because it have more input tokens than token generation stage.
+<img src="./pictures/DeepSpeed-Inference-Hybrid.png" width="500px">
 
-Prior Work:
+- Motivation:
+Can split the promt into smaller part and combine as different request send to execute with token genration.
+Reasons:
+1, In pre-processing stage, there is no dependency between the excution of two differnet tokens.
+2, Only last token need prior inseted tokens's KV-Cache, and they belong to different iteration; There is enough time for data communication across devices.
+
+### Prior Works:
+
+#### Abstract:
     1, Dynamic Batching like Orca and FastServe not split there two part of execution
     2, Sequence-Scheduling(Huawei) combine similer response lengths into micro-batches
     3, Like Flover, it considered these problem, but their work split into two part of execution, may compute GPU resources.
 
-Can split the promt into smaller part and combine as different request send to execute with token genration.
-
-
-### Prior Works:
+#### Details for Prior works:
 - Orca(https://www.usenix.org/system/files/osdi22-yu.pdf)
   - schedule execution at the granularity of iteration: at end of each iteration, check every request in the batch; if finished, return the generated answer, and select a new request in request pool to join the batch.
   - FCFS schedule algorithm （first come first served）
@@ -47,7 +78,7 @@ Can split the promt into smaller part and combine as different request send to e
       - Problems： like Orca, also need to wait at least one request finish; if the request have a long output length, will block following short jobs.
   - skip-join MLFQ schedule algorithm (multi-level feedback queue)
   - The two phrases of LLM Inference
-    ![Alt text](./pictures/FastServe-two_phrases_of_LLM_inference.png)
+    <img src="./pictures/FastServe-two_phrases_of_LLM_inference.png" width="400px">
   - New Problem: preemptive scheduling has to keep the key-value cache in the GPU memory for all preempted jobs in the pending state for future token generation. The key-value cache consumes a huge amount of GPU memory. (7X larger than FCFS method)
       - proactive key-value cache swapping: 
           - Instead of reactively offloading jobs when the key-value cache is full, FastServe keeps some idle key-value cache slot for newly arrived jobs. 
@@ -60,6 +91,11 @@ Can split the promt into smaller part and combine as different request send to e
 - Sequence-Scheduling(https://arxiv.org/pdf/2305.13144.pdf)
   - Huawei & NUS
   - gathers queries with similar response lengths into micro-batches.
+  - Use Prompt to guide the LLM to predict the length of the response in advance.
+
+- TurboTransformers
+  - dynamic batching with similer requests length.
+<img src="./pictures/TurboTransformers-batch-scheduler.png" width="400px">
 
 - Flover(https://arxiv.org/pdf/2305.13484.pdf)
   - Prior work shortages: 
@@ -70,7 +106,7 @@ Can split the promt into smaller part and combine as different request send to e
       - For Inference, pre-processing stage need to calculate the input prompt and generate the KV-Cache, is compute requirement, but only happended at the first iteration.
       - For token generation stage generate token iteration by iteration, Not need as much excution costs as pre-processing.
       - Split to two part: use concurrent instance to calculate pre-processing while using dynamic batching for token generation.
-      ![Alt text](./pictures/Flover-main_structure.png)
+      <img src="./pictures/Flover-main_structure.png" width="800px">
   - Also have a memory management:
       - Problem: both computing kernels and collective communication can only process contiguous memory buffers.
         - combine with the kernel function
@@ -81,13 +117,16 @@ Can split the promt into smaller part and combine as different request send to e
         - **Still Checking the source Code whether the score excution of mini-batch need similer length（for KV-Cache）**
 
 
-- DeepSpeed-FastGen(https://github.com/microsoft/DeepSpeed/tree/master/blogs/deepspeed-fastgen)
+- DeepSpeed-FastGen
+  - Link: https://github.com/microsoft/DeepSpeed/tree/master/blogs/deepspeed-fastgen
+  - SourceCode: https://github.com/microsoft/DeepSpeed-MII/tree/main
+
   - Also focus on the difference of pre-processing and token generration
   - Based on observation: token number is the only factor to affect the token generate latency and the throughput of the model.
-      ![Alt text](./pictures/Deepspeed-Fastgen-Insight.png)
+      <img src="./pictures/Deepspeed-Fastgen-Insight.png" width="800px">
       - Here, based on my understanding, the forward token number means for single layer, the tokens contained by the micro-batch input.
   - Dynamic SplitFuse
       - Long prompts are decomposed into much smaller chunks and scheduled across multiple forward passes (iterations) with only the final pass performing any generation.
       - Short prompts will be composed to exactly fill a target token budget. Even short prompts may be decomposed to ensure the budget is precisely met and the forward sizes are well-aligned.
-  - Existing Problems:
-      - the split prompts 
+  <img src="./pictures/DeepSpeed-Fastgen-illustration.png" width="600px">
+  
