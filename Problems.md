@@ -355,7 +355,6 @@
 - Pipeline parallelism
 - Tensor/Operator parallelism
 
-
 ### Week5 留下的问题
 - LLM的特征
   - why transfermer层的 QKVO 是[h,h]
