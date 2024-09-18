@@ -1,3 +1,5 @@
+## Compression & Sparsification
+
 ### Title: SKVQ: Sliding-window Key and Value Cache Quantization for Large Language Models
 Institution: Shanghai AI Lab & SJTU
 Conference: COLM 2024
@@ -48,6 +50,8 @@ Source code: https://github.com/andy-yang-1/DoubleSparse
 <img src="./pictures/Double-Sparsity.png" width=400>
 
 
+## Trunk-Prefill & Sequence Parallelism
+
 ### Title: Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve
 Institution: Microsoft & Georgia Institute of Technology
 Conference: OSDI 2024
@@ -56,10 +60,20 @@ Source Code: https://github.com/microsoft/sarathi-serve
 
 [Personal-Understanding](./Sarathi-Serve-OSDI2024.md)
 
-### Title: Llumnix: Dynamic Scheduling for Large Language Model Serving
-Institution: Alibaba Group
-Conference: OSDI 2024
-Paper Link: https://www.usenix.org/system/files/osdi24-sun-biao.pdf
-Source Code: https://github.com/AlibabaPAI/llumnix
+### Title: LoongServe: Efficiently Serving Long-Context Large Language Models with Elastic Sequence Parallelism 
+Conference: SOSP 2024 
+Institution: Peking University (Xin Jin)
+Paper Link: https://arxiv.org/pdf/2404.09526 
 
-[Personal-Understanding](./Llumnix-OSDI2024.md)
+[Personal Understanding](../Cluster-LLM/LoongServe-SOSP2024.md)
+
+
+### Title: CodeCrunch: Improving Serverless Performance via Function Compression and Cost-Aware Warmup Location Optimization
+Conference: ASPLOS 2024
+Institution: Northeastern University
+Paper Link: https://dl.acm.org/doi/pdf/10.1145/3617232.3624866
+
+### Title: Sabre: Hardware-Accelerated Snapshot Compression for Serverless MicroVMs
+Conference: OSDI 2024
+Institution: MIT & Intel
+Paper Link: https://www.usenix.org/conference/osdi24/presentation/lazarev

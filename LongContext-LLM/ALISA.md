@@ -34,11 +34,11 @@ Note：
 
 #### 论文中的几个点
 - LLM 模型的稀疏化并不呈现固定的pattern (Figure 5)
-<img src="./figures/ALISA/Figure-5.png" width="400px">
+<img src="./figures/ALISA-Figure-5.png" width="400px">
 
 - SWA算法：注意，文中的SWA算法是通过稀疏化减少访问 KV Cache的footprint，所以并不是说step i 不用的KV Cache在step i+1 也不会被使用
   - 使用locally static + globally dynamic两种方式： 最近的K个token是必然保留的，其他的根据score来决定是否使用
 
 - 三种情况分开讨论，在超长request场景下，针对已经删除/数据量太大，选在使用GPU重新计算的方式来替换从CPU中读取
   - 这里也涉及了GPU MEN <-> CPU MEM的调度
-<img src="./figures/ALISA/Figure-7.png" width="800px">
+<img src="./figures/ALISA-Figure-7.png" width="800px">
