@@ -24,9 +24,20 @@ Source Code:
 - Solution:
     - Let the prefill and decode stage be executed on different devices.
 
+[Personal-Understanding](./DistServe.md)
+
 ### Title: LoongServe: Efficiently Serving Long-Context Large Language Models with Elastic Sequence Parallelism 
 Conference: SOSP 2024 
 Institution: Peking University (Xin Jin)
 Paper Link: https://arxiv.org/pdf/2404.09526 
 
 [Personal Understanding](./LoongServe-SOSP2024.md)
+
+
+### Title: FastDecode: High-Throughput GPU-Efficient LLM Serving using Heterogeneous Pipelines
+Conference: ArXiv 18 Mar 2024
+Paper: https://arxiv.org/abs/2403.11421
+Auther: 
+- Jiaao He, Jidong Zhai
+- Tsinghua University
+

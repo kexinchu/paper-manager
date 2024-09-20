@@ -40,17 +40,17 @@ R-Part vs S-Part
 - CPU的最大功耗要比GPU低很多
 
 #### Table 2: 表示在大的batch_size下，R-Part下 GPU 和 CPU取得了近似的Lat 和 TFlops
-<img src="./figures/FastDecode/Table-2.png" width="400px">
+<img src="./pictures/FastDecode-Table-2.png" width="400px">
 
 
 #### 主要的架构图：GPU分配多个CPU节点
-<img src="./figures/FastDecode/Figure-4.png" width="400px">
+<img src="./pictures/FastDecode-Figure-4.png" width="400px">
 
 
 #### 将R-Part 和 S-Part放到不同的设备上处理，带来新的问题：When one type of worker is working, the other idles.
 - 本文通过Pipeline的方式来重叠 S-Part 和 R-Part
 - 使用两个mini-batch A 和 mini-batch B
-<img src="./figures/FastDecode/Figure-5.png" width="400px">
+<img src="./pictures/FastDecode-Figure-5.png" width="400px">
 
 
 #### the workloads of R-Part and S-Part changes differently depending on the length of the generated sequence.
@@ -59,4 +59,4 @@ R-Part vs S-Part
 - 两个阶段 Workload 的变化会相互影响
 - 对于R-Part，当request长度很长时，Latency会边长，因为load KV cache的时间变长了，本文通过控制每次pipeline的sequence的总长度
   - 用到了Mini Batch
-<img src="./figures/FastDecode/Figure-7.png" width="400px">
+<img src="./pictures/FastDecode-Figure-7.png" width="400px">
