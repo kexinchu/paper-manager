@@ -41,3 +41,10 @@ Auther:
 - Jiaao He, Jidong Zhai
 - Tsinghua University
 
+### Title: Parrot: Efficient Serving of LLM-based Application with Semantic Variable
+Conference: OSDI 2024
+Institution: Shanghai Jiao Tong University
+Paper Link: https://www.usenix.org/system/files/osdi24-lin-chaofan.pdf
+Source Code: https://github.com/MachineLearningSystem/OSDI24-ParrotServe
+
+[My understanding](./Parrot-OSDI2024.md)
