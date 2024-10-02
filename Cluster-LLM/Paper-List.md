@@ -48,3 +48,14 @@ Paper Link: https://www.usenix.org/system/files/osdi24-lin-chaofan.pdf
 Source Code: https://github.com/MachineLearningSystem/OSDI24-ParrotServe
 
 [My understanding](./Parrot-OSDI2024.md)
+
+### Title: ALTO: An Efficient Network Orchestrator for Compound AI Systems 
+Conference: arXiv 7 Mar 2024 
+Institution: Stanford 
+Paper Link: https://arxiv.org/pdf/2403.04311
+
+
+### Title: MuxServe: Flexible Spatial-Temporal Multiplexing for Multiple LLM Serving 
+Conference: arXiv 13 Jun 2024 
+Institution: The Chinese University of Hong Kong 
+Paper Link: https://arxiv.org/pdf/2404.02015 

@@ -1,6 +1,9 @@
 # Chain of Thought
 - 2024-9-13, OpenAI 发布了新的o1推理模型，在性能上超越了GPT-4o. 并首次在语言模型领域实现了强化学习和“私密思维链”
 
+仔细学习下：
+https://zhuanlan.zhihu.com/p/773907223
+
 ### Title: Chain of Thought Empowers Transformers to Solve Inherently Serial Problems
 Institution: Stanford & Google
 Conference: ICLR 2024
