@@ -55,19 +55,63 @@ Paper Link: https://www.usenix.org/conference/osdi24/presentation/lazarev
         <img src="./pictures/low-rank-approximation.png" width=300>
 
 - LoRA
-    - for pre-trained parameters, using low-rank decomposition
-    https://www.one-tab.com/page/O5XNqa5HTNSb8zHK0DzUxA
-    
+    - for pre-trained parameters, using low-rank decomposition, add these low-rank adaptation to each layer.
+    - When finetuning, freezes the parameters of pre-trained LLMs, only update the added adaptations
+    - For inference, choose different adaptation based on the user/requests.
+
+    <img src="./pictures/LoRA-Overview.png" width=400>
+
+- whether LoRA parameters can be merged into the pre-trained parameters?
+    - Yes, swapping adapters by adding and subtracting LoRA weights from the base model.
+
+- Whether LoRA only works for FFN Layer?
+    - No, The original paper applying LoRA for transformer, use LoRA for $W_q, W_k, W_v, W_o$
+    - Typically, this adjustment is only applied to the query, key, value, and output projection matrices in the self-attention module, excluding the feed-forward module.
 
 ### S-LoRA: Serving Thousands of Concurrent LoRA Adapters 
 Institution: UC Berkerlay 
 Conference: MLSys 2024
 Paper Link: https://arxiv.org/abs/2311.03285 
 
+##### Key Point
+- In LoRA, swapping adapters by adding and subtracting LoRA weights from the base model. It significantly reduces overall serving throughput and increases total latency when serving multiple adapters concurrently.
+- Especially for batching
+
+##### Observations
+- <span style="color:red;">adapters with varying sizes and operations</spin>
+- the dimention of LoRA parameters is (R, H), H is the hidden size. While the KV Cache's dimention is (S, H), S refers sequence length. has similar dimention size H.
+
+##### Challenges for many LoRA adapters
+- <span style="color:red;">adapters with varying sizes</spin>, coupled with the dynamic allocation and deallocation of KV cache, can lead to memory fragmentation and I/O overhead.
+- the separated computation of many adapters with distinct ranks in noncontiguous memory is challenging to batch and demands the development of new computation kernels.
+
+##### Design Overview
+- seperate the computation of base-model and LoRA parameters
+<img src="./pictures/S-LoRA-seperate-lora-exec.png" width=400>
+
+- store all LoRA adapters in Host memory, only fetch used LoRAs to GPU.
+- To increase GPU utilization, use large batch-size and reduce the number of actived adapters: prioritize batching requests that use the same adapter
+    - Use Dynamic Batching
+<img src="./pictures/S-LoRA-overview.png">
+
+- For challenge 1: memory management
+    - Challenges:
+        - memory fragmentation caused by the dynamic loading and offloading adapter weigts(variable size)
+            - which adapter is active depends on the requests
+        - the migration latency of loading/offloading
+    - Solutions:
+        - 1, based on Observation 2 and pagedAttention, use Unified Paging to manage KVCache and Adapter's parameters.
+            - the memory pool is managed in pages
+            - each page contains a verctor of H (hidden-size)
+            - KV cache contains S page, Adapter contains R page.
+        - 2, prefetching adapter weights
+            - While running the current decoding batch, we predict the adapters required for the next batch based on the current waiting queue.
+        <img src="./pictures/S-LoRA-unified-pages.png">
 
 ### dLoRA: Dynamically Orchestrating Requests and Adapters for LoRA LLM Serving 
 Conference: OSDI 2024 
 Institution: PKU 
 Paper Link: https://www.usenix.org/conference/osdi24/presentation/wu-bingyang 
 
- 
+##### Challenges
+- Merged inference may cause low GPU utilization
