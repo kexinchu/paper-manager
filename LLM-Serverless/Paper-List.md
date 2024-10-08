@@ -39,3 +39,19 @@ Source Code: : https://zenodo.org/doi/10.5281/zenodo.8347244
 Conference: OSDI 2024
 Institution: MIT & Intel
 Paper Link: https://www.usenix.org/conference/osdi24/presentation/lazarev
+
+[My Understanding](./Sabre-OSDI2024.md)
+
+
+### S-LoRA: Serving Thousands of Concurrent LoRA Adapters 
+Institution: UC Berkerlay 
+Conference: MLSys 2024
+Paper Link: https://arxiv.org/abs/2311.03285 
+
+
+### dLoRA: Dynamically Orchestrating Requests and Adapters for LoRA LLM Serving 
+Conference: OSDI 2024 
+Institution: PKU 
+Paper Link: https://www.usenix.org/conference/osdi24/presentation/wu-bingyang 
+
+ 
