@@ -42,6 +42,22 @@ Paper Link: https://www.usenix.org/conference/osdi24/presentation/lazarev
 
 [My Understanding](./Sabre-OSDI2024.md)
 
+## LoRA: Low-Rank Adaptation of LLMs
+[SourcePaper 2021](https://arxiv.org/pdf/2106.09685)
+
+- Explain of Low-Rank
+    - The rank of a matrix is the number of linearly independent rows or columns in the matrix.
+    - Low-rank Approximation of Matrix
+        - A matrix $M$ of size $m x n$ and rank $r$ can be decomposed into a pair of matrices $L_k$ and $R_k$ 
+        - When $k = r$, the matrix $M$ can be exactly reconstructed from the decomposition.
+        - When $k < r$, then the decomposition provides a low-rank approximation $\hat{M}$ of $M$.
+
+        <img src="./pictures/low-rank-approximation.png" width=300>
+
+- LoRA
+    - for pre-trained parameters, using low-rank decomposition
+    https://www.one-tab.com/page/O5XNqa5HTNSb8zHK0DzUxA
+    
 
 ### S-LoRA: Serving Thousands of Concurrent LoRA Adapters 
 Institution: UC Berkerlay 
