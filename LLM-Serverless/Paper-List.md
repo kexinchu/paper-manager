@@ -62,7 +62,13 @@ Paper Link: https://www.usenix.org/conference/osdi24/presentation/lazarev
     <img src="./pictures/LoRA-Overview.png" width=400>
 
 - whether LoRA parameters can be merged into the pre-trained parameters?
-    - Yes, swapping adapters by adding and subtracting LoRA weights from the base model.
+    - form dLoRA
+    - Yes, At the inference time, as shown in Figure 1(b), LoRA can merge the multiplied matrix $B×A$ (i.e., ∆W) into W to eliminate extra inference overhead.
+        - No additional inference overhead
+        - but longer queuing delya
+    - Or we can execute the pre-trained parameter $W$ and adapters ($A_i, B_i$) seperately
+        - Shorter queuing delay
+        - but extra computational costs
 
 - Whether LoRA only works for FFN Layer?
     - No, The original paper applying LoRA for transformer, use LoRA for $W_q, W_k, W_v, W_o$
@@ -114,4 +120,41 @@ Institution: PKU
 Paper Link: https://www.usenix.org/conference/osdi24/presentation/wu-bingyang 
 
 ##### Challenges
-- Merged inference may cause low GPU utilization
+- Merged inference (directly merge LoRA parameters to pre-trained Models) may cause low GPU utilization.
+    - Observation show only 50% GPU utilization
+    - Reason: when one LoRA adapter is processing, the requests in batch relys on other LoRA adapters need to be wait. (Longer Queuing delay)
+    - Merged inference only works for single adapter scenario
+- Severe load imbalance
+    - The burst of variable requests leads to severe load imbalance under staitc LoRA placement
+    - Input and output lengths of requests are highly variable
+
+##### Design Overview
+- dynamically orchestrate requests and LoRA adapters
+    - cluster level
+    - process requests to different LoRA adapters in a single batch
+- For challenge 1:
+    - dLoRA can dynamically merge and unmerge LoRA adapters with the base model in each worker replica.
+    - New Challenges: 
+        1, How to decide when to merge and unmerge adapters;
+        2, Switching overhead + scheduling overhead
+            - Switching overhead >= decoding iteration time
+            - Complex scheduling at the granularity of the iteration incurs overhead
+- For challenge 2:
+    - dLoRA can dynamically migrate LoRA adapters and requests between worker replicas.
+    - New Challenges: 1, How to decide which adapters and requests to migrate;
+
+- Overview:
+    - dLoRA deploys a set of workers in a cluster, each replica contains a subset of LoRA adapters and one base model on several GPUs
+    - Intra-replica, use dynamic batching
+        - decoding across several iterations, even though the switch overhead is bigger than decoding iteration time, still can be amortized.
+        - use historical: set break point on iteration granularity; 
+            - Upon reaching a break point, the algorithm tunes the thresholds based on the data collected from the preceding period
+            - based on the throughput of adapters
+    - Inter-replicas, use dynamic balancing
+        - proactive mechanism
+            - In the long term, The workload pattern exhibit predictablity and periodicity, such as low load at midnight and high load during day time.
+            - Based on this, preload needed LoRA adapters to GPU memory
+        - reactive mechanism
+            - the load imbalance caused by variable input and output length
+            - use dynamic adapter-request co-migration
+                - migrate LoRA adapters and requests (with intermediate states) from over-loaded replicas to others.

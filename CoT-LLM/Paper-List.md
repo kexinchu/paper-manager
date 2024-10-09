@@ -1,16 +1,9 @@
 # Chain of Thought
 - 2024-9-13, OpenAI 发布了新的o1推理模型，在性能上超越了GPT-4o. 并首次在语言模型领域实现了强化学习和“私密思维链”
+- Chain-of-Thought (CoT) Prompting1 is a recent advancement in prompting methods that encourage Large Language Models (LLMs) to explain their reasoning. This method contrasts with standard prompting by not only seeking an answer but also requiring the model to explain its steps to arrive at that answer.
 
 仔细学习下：
 https://zhuanlan.zhihu.com/p/773907223
-
-### Title: Chain of Thought Empowers Transformers to Solve Inherently Serial Problems
-Institution: Stanford & Google
-Conference: ICLR 2024
-Paper Link: https://arxiv.org/pdf/2402.12875
-Source Code: 
-
-##### Key Point
 
 - Example to CoT
 <img src="./pictures/CoT-examples.png">
@@ -37,6 +30,27 @@ Source Code:
 - Investigates how scaling test-time computation in LLMs can be more effective than increasing model size or pre-training FLOPs.
 - Key Assumption: Through more test-time computation, the performance of LLMs can be promoted. (The quality of the answer)
 
+##### Framework Architectures
+- Base generator(LLMs) + Inference
+    - fix the pre-trained LLM parameters, optimize the inference 
+    - require a pre-trained verifier + search method
+        - Verifier: 
+            - PRM (Process-supervised Reward Model)
+            - ORM (Outcome-supervised Reward Model)
+        - Search Method:
+            - best of N
+            - bean search
+            - lookahead searcg
+            - MCTS (Monte-Carlo Tree Search)
+
+- Base generator + formatted post training + Inference
+    - use sft/rlhf to update the generator, let the model to support "generate intermediate reasoning and answers"
+
+##### This paper discussed two method 
+- Training PRM Verifiers Amenable to Search
+
+- Refining the distribution of LLMs (sft)
+
 - This paper focus on Testing: For math problems with different difficulty, test different test-time compute mechanism.
     - Use pretrained LLM Model: PaLM 2-S
     - Optiomizing a Varifier (PRMs)
@@ -62,6 +76,12 @@ Source Code:
     - Compared to a ~14x larger pretrained models,
     - For easy questions, Test-time computing can provide a significant accuray improvement. But for hard questions, the big model can provide better accuracy. 
 
+
+### Title: Chain of Thought Empowers Transformers to Solve Inherently Serial Problems
+Institution: Stanford & Google
+Conference: ICLR 2024
+Paper Link: https://arxiv.org/pdf/2402.12875
+Source Code: 
 
 ### Blog: Reasoning models
 INstitution: OpenAI

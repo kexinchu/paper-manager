@@ -1,3 +1,6 @@
+## MLLM hardware-software co-design
+[Reading-Notes](./Hardware-Software-Codesign.md)
+
 ## MLLM Training
 [Reading-Notes](./MLLM-Train.md)
 
@@ -21,7 +24,7 @@ Source Code:
 
 - Observation in MLLM (Attention Patterns)
     - recent tokens have high attention scores
-    - tokens converted from videos typically receive high attention scores
+    - <span style="color:red;">tokens converted from videos typically receive high attention scores</span>
         - In some VLMs, the initial tokens of the video even share over 40% of attention scores
         - But since the position of videos is unknown beforehand in the multi-round conversation, an effective method is required to identify important visual tokens dynamically.
     - high attention scores are also distributed among tokens scattered in the sequence. These tokens are attended to for dozens or hundreds of decoding steps
@@ -40,6 +43,16 @@ Source Code:
     - For the character in observation 4, insert Attention Bias to dynamically update and get the "shift" character
 
 
+### LOOK-M: Look-Once Optimization in KV Cache for Efficient Multimodal Long-Context Inference
+Institution: The Ohio State University
+Conference: ArXiv 26 Jun 2024
+Paper List: https://arxiv.org/abs/2406.18139
+
+##### Key Observation
+- Use KV cache compression
+- <span style="color:red;">the model exhibits greater attention to the textual components during the multimodal prompt encoding process.</span>
+
+<img src="./pictures/M-LOOK-Visualization.png" width=400>
 
 ## Servey
 ### A Survey on Multimodal Large Language Models
