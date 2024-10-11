@@ -1,8 +1,8 @@
 ## Inference Acceleration for Large Language Models on CPUs
 
 ### Paper Information
-Conference: Preprints 29 Feb 2024
-Paper: https://www.preprints.org/manuscript/202402.1702/v1
+Conference: Preprints 29 Feb 2024  
+Paper: https://www.preprints.org/manuscript/202402.1702/v1  
 Auther: 
 - Jithin VG *, Ditto PS and Adarsh MS
 - Intel

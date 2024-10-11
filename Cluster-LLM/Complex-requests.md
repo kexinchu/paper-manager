@@ -1,8 +1,8 @@
 ### Title: Parrot: Efficient Serving of LLM-based Application with Semantic Variable
-Conference: OSDI 2024
-Institution: Shanghai Jiao Tong University
-Paper Link: https://www.usenix.org/system/files/osdi24-lin-chaofan.pdf
-Source Code: https://github.com/MachineLearningSystem/OSDI24-ParrotServe
+Conference: OSDI 2024  
+Institution: Shanghai Jiao Tong University  
+Paper Link: https://www.usenix.org/system/files/osdi24-lin-chaofan.pdf  
+Source Code: https://github.com/MachineLearningSystem/OSDI24-ParrotServe  
 
 ##### Questions
 - High-quality LLM apps often need multiple LLM requests to collaborate indifferent workflows.
@@ -28,15 +28,15 @@ Source Code: https://github.com/MachineLearningSystem/OSDI24-ParrotServe
     - This is why more than 94% of prefix tokens could be repetitively used across LLM requests for various users
 
 ### Title: ALTO: An Efficient Network Orchestrator for Compound AI Systems 
-Conference: arXiv 7 Mar 2024 
-Institution: Stanford 
-Paper Link: https://arxiv.org/pdf/2403.04311
+Conference: arXiv 7 Mar 2024   
+Institution: Stanford   
+Paper Link: https://arxiv.org/pdf/2403.04311  
 
 
 ### Title: AutoTQA: Towards Autonomous Tabular Qestion Answering through Multi-Agent Large Language Models 
-Conference: VLDB 2024 
-Institution: East China Normal University
-Paper Link: https://www.vldb.org/pvldb/vol17/p3920-zhu.pdf 
+Conference: VLDB 2024   
+Institution: East China Normal University  
+Paper Link: https://www.vldb.org/pvldb/vol17/p3920-zhu.pdf   
 
 ##### Key Point
 - Use multi-agent to solve TQA tasks
@@ -50,4 +50,5 @@ Paper Link: https://www.vldb.org/pvldb/vol17/p3920-zhu.pdf
     - the Executor, provides various execution environments (e.g., text-toSQL) to fulfll specifc tasks assigned by the Engineer; 
     - the Critic, responsible for judging whether to complete the user’s natural language inquiry and identifying gaps between the current results and initial tasks. 
 - More complicated: a cycle with feedback
+
     <img src="./pictures/AutoTQA-multiagent-cycle.png" width=400>

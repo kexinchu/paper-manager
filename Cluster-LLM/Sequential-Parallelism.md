@@ -1,7 +1,52 @@
+### Ring Attention with Blockwise Transformers for Near-Infinite Context 
+Institution: UC Berkeley   
+Conference: Arxiv Nov 27 2023   
+URL: https://arxiv.org/pdf/2310.01889  
+
+##### Key Point
+- For long context, split the requests into blocks and let them be executed across multiple GPUs (For Training)
+- The communication Costs
+
+<img src="./pictures/RingAttention-overview.png" width=800>
+
+### Striped Attention: Faster Ring Attention for Causal Transformers 
+Institution: MIT   
+Conference: Arxiv Nov 15 2023   
+URL: https://arxiv.org/pdf/2311.09431    
+
+##### Key Point
+- Do more work based on Ring Attention (For Training)
+- Ring Attention will cause GPU Idle (use empty musk matrix) => workload balance
+
+<img src="./pictures/StripedAttention-overview.png" width=800>
+
+- Workloads
+
+<img src="./pictures/StripedAttention-workloads.png" width=300>
+
+### Mnemosyne: Parallelization Strategies for Efficiently Serving Multi-Million Context Length LLM Inference Requests Without Approximations 
+Institution: Georgia Tech, UCSD, Microsoft   
+Conference: Arxiv Sep 25 2024   
+URL: https://arxiv.org/pdf/2409.17264  
+
+##### Key Point
+- For LLM Inference
+- Prefill Stage
+    - the tokens already known, can use Sequential Pipeline Parallelism
+
+    <img src="./pictures/Mnemosyne-SSP.png" width=400>
+
+- Decode Stage
+    - the token is generated one by one, use KV parallelism (Based on Ring Attention, But in ring attention, the migration costs of KV cache is too large for decode stage => Keep KV cache on device, migrate and get-all Output of self-attention)
+    - can insert new GPU device while resource is not enough
+
+    <img src="./pictures/Mnemosyne-KVP.png" width=400>
+
+
 ### Title: LoongServe: Efficiently Serving Long-Context Large Language Models with Elastic Sequence Parallelism 
-Conference: SOSP 2024 
-Institution: Peking University  
-Paper Link: https://arxiv.org/pdf/2404.09526 
+Conference: SOSP 2024   
+Institution: Peking University    
+Paper Link: https://arxiv.org/pdf/2404.09526   
 
 ##### Key point
 - 解决：long context场景下，1，不同request之间workload差距更大(prompt 1: 256 tokens, prompt 2: 1M tokens);   2, request prefill 和 decode 阶段的workload差距也在变大。  (KV cache带来的存储开销线性增加) 
@@ -15,7 +60,7 @@ Paper Link: https://arxiv.org/pdf/2404.09526
 
 - Note: Sequence Parallelism
     - Prefill stage
-        使用的Striped Attention，其实类似于all-reduce方法， 
+        使用的Striped Attention， 
         
         将长prompt分给多个GPU，每个GPU根据分到的tokens计算去q,k,v 并得到 local attention 
         每个GPU将自己的k,v 传给下一个GPU： all-reduce 

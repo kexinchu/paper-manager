@@ -1,10 +1,9 @@
 ## DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving
 
 ### Paper Information
-Conference: ArXiv 23 Mar 2024
-Paper: https://arxiv.org/abs/2401.09670
-Auther: 
-- Yinmin Zhong, Xin Jin, Peking University
+Conference: ArXiv 23 Mar 2024  
+Paper: https://arxiv.org/abs/2401.09670  
+Auther: Yinmin Zhong, Xin Jin, Peking University  
 
 
 ### 论文理解

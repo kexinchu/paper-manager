@@ -1,9 +1,9 @@
 # Llumnix: Dynamic Scheduling for Large Language Model Serving
-Institution: Alibaba Group
-Conference: OSDI 2024
-Paper Link: https://www.usenix.org/system/files/osdi24-sun-biao.pdf
-Source Code: https://github.com/AlibabaPAI/llumnix
-OSDI Link（contains Presentation）: https://www.usenix.org/conference/osdi24/presentation/shubha
+Institution: Alibaba Group  
+Conference: OSDI 2024  
+Paper Link: https://www.usenix.org/system/files/osdi24-sun-biao.pdf  
+Source Code: https://github.com/AlibabaPAI/llumnix  
+OSDI Link（contains Presentation）: https://www.usenix.org/conference/osdi24/presentation/shubha  
 
 
 ### Kek Point
