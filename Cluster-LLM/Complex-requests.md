@@ -52,3 +52,48 @@ Paper Link: https://www.vldb.org/pvldb/vol17/p3920-zhu.pdf
 - More complicated: a cycle with feedback
 
     <img src="./pictures/AutoTQA-multiagent-cycle.png" width=400>
+
+
+### *Title: Teola: Towards End-to-End Optimization of LLM-based Applications 
+Conference: June 29 2024 
+Institution: The Chinese University of Hong Kong 
+Paper Link: https://arxiv.org/pdf/2407.00326 
+
+##### Key Point
+- Problems:
+    - LLM-based applications consist of both LLM and non-LLM components
+        
+        <img src="./pictures/Teola-real-world-LLM-based-Apps.png" width=700>
+
+    - Previous works focus on LLMs' latency, but the non-LLM modules also contributing to the end-to-end latency.
+        - in some case(Document question answering with RAG) even more than 50%
+
+        <img src="./pictures/Teola-Latency-breakdown.png" width=350>
+
+- Motivations:
+    - Now, each module is executed independently with backend engines; but across smaller granularity, some process can be executed in parallel
+        - LLMs and query-expansion(use LLMs to generate more related querys for searching) can be split into : prefilling and decoding
+    - In query-expansion, generating multiple querys can also be: each generating a new query and sending it to the subsequent primitive (embedding creation) right away without waiting for all queries to come out.
+
+    <img src="./pictures/Teola-Latency-Workflow.png" width=350>
+
+- Architecture
+    - Offline:
+        - Developers register the execution engine for their App (1):
+            - embedding models
+            - LLMs
+            - database operations
+            - the latency profiles for various input sizes (batch size and sequence length)
+            - a workflow template (the app's components like query extension and LLM generation, and their execution sequence)
+        - Developer can also provide optimization strategies (Optional)
+    - Online
+        - Teola create a primitive-based dataflow graph(p-graph) based on the input query with specific input data and workflow configurations (2)
+        - Teola applies relevant optimizations to generate the execution graph(e-graph) and submit it to the Runtime (3)
+        - The Runtime scheduling the e-graph's primitives on the appropriate backends, and return the output back to frontend.(4)
+
+    <img src="./pictures/Teola-Overview.png" width=350>
+
+    - Graph Optimizer
+
+
+    - Runtime Scheduling

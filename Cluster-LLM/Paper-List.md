@@ -44,7 +44,17 @@ Auther:
 - Tsinghua University
 
 ### Title: MuxServe: Flexible Spatial-Temporal Multiplexing for Multiple LLM Serving 
-Conference: arXiv 13 Jun 2024   
+Conference: ICML 2024   
 Institution: The Chinese University of Hong Kong   
 Paper Link: https://arxiv.org/pdf/2404.02015   
+
+### Title: HexGen: Generative Inference of Foundation Model over Heterogeneous Decentralized Environment
+Conference: ICML 2024   
+Institution: HKUST & ETH & CMU   
+Paper Link: https://arxiv.org/abs/2311.11514  
+
+### Title: InferCept: Efficient Intercept Support for Augmented Large Language Model Inference
+Conference: ICML 2024
+Institution: UCSD
+Paper Link: 
 
