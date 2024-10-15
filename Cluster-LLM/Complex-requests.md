@@ -73,7 +73,7 @@ Paper Link: https://arxiv.org/pdf/2407.00326
 - Motivations:
     - Now, each module is executed independently with backend engines; but across smaller granularity, some process can be executed in parallel
         - LLMs and query-expansion(use LLMs to generate more related querys for searching) can be split into : prefilling and decoding
-    - In query-expansion, generating multiple querys can also be: each generating a new query and sending it to the subsequent primitive (embedding creation) right away without waiting for all queries to come out.
+    - In query-expansion, generating multiple querys can also be: each generating a new query and sending it to the subsequent primitive (embedding creation) right away without waiting for all queries to come out.  =>  <spin stype="color:red">*primitives*</spin>
 
     <img src="./pictures/Teola-Latency-Workflow.png" width=350>
 
@@ -91,9 +91,40 @@ Paper Link: https://arxiv.org/pdf/2407.00326
         - Teola applies relevant optimizations to generate the execution graph(e-graph) and submit it to the Runtime (3)
         - The Runtime scheduling the e-graph's primitives on the appropriate backends, and return the output back to frontend.(4)
 
-    <img src="./pictures/Teola-Overview.png" width=350>
+    <img src="./pictures/Teola-Overview.png" width=400>
+
+    - CPU-based engine (not involve DNN models, like databases); Other NN-based components be execute on GPU.
 
     - Graph Optimizer
+        - p-Graph: a sub-primitive-level graph with <spin style="color:red">*well-defined dependencies*</spin>
+        - Optimization Goals: maximizing the parallelism in distributed executions(primitives)
+            - primitive parallelism
+            - pipeline parallelism
+        - Optimization:
+            - Dependency pruning:
+                - exemining each task primitive's inputs with it's current unstream primitives
+                - pruning unnecessary dependencies
+                - **ensure only data dependencies in the remaining edge(DAG)**
+            - Stage decomposition:
+                - For batchable primitives, **split big batch into multiple sub-micro-batch**
+                - after each sub-micro-batch finished, directly send to next primitives rather than waiting.
+            - LLM prefilling split:
+                - In LLM prefill, some prompt parts may be available in advance while others still waiting for upstreams primitives finish(RAG, APIs)
+                - **pre-compute available parts**.
+            - LLM decodiing pipelining:
+                - Like the new rewritten sentence in query expansion, **once a coherent output is available, it can be promptly forwarded to downstream primitives**, avoiding waiting for full decoding.
+        - after optimization, get the e-Graph
 
+        <img src="./pictures/Teola-optimization.png" width=800>
 
     - Runtime Scheduling
+        - two-tier scheduling
+        - Graph Scheduler
+            - tracking the status of each query’s e-graph and issues primitive nodes as their dependencies are met(the in-degrees of nodes)
+            - dispatching the node itself
+
+        - Engine Scheduler
+            - a query may dispatch multiple primitive nodes simultaneously to an engine scheduler or have several pending primitive nodes in the queue, especially when components share the same engine.
+            - In following figure, batch A and B is not efficient because the task B is not the bottleneck to query 1, so we can batch A and H, so the query 1 and query 2 both can get progress. (**Topology-aware batching**)
+
+        <img src="./pictures/Teola-two-tier-scheduling.png" width=400>
