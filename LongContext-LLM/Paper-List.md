@@ -106,4 +106,28 @@ URL: https://arxiv.org/pdf/2410.00428
         - overlap the KV cache offlaoding and the prefill execution(multiple layers)
     - Layer-wise KV cache management
         - allows computation to overlap with transmission overhead.
-        - eg: , in an 8-layer model, if 4 layers of KV cache are kept on the GPU, we retain the 1st, 3rd, 5th, and 7th layers on the GPU, while the 0th, 2nd, 4th, and 6th layers are offloaded to the CPU. T
+        - eg: , in an 8-layer model, if 4 layers of KV cache are kept on the GPU, we retain the 1st, 3rd, 5th, and 7th layers on the GPU, while the 0th, 2nd, 4th, and 6th layers are offloaded to the CPU. 
+
+
+### Title: Discovering the Gems in Early Layers: Accelerating Long-Context LLMs with 1000x Input Token Reduction
+Conference: ArXiv 25 Sep 2024  
+INstitution: Wisconsin & U of Hong Kong  
+Paper List: https://arxiv.org/pdf/2409.17422   
+Source Code: https://github.com/SalesforceAIResearch/GemFilter  
+
+##### Key Point
+- Problems
+    - There are already many works like H2O reduce the KV cache size to improve decoding latency and GPU memory usage; But for prompt prefill stage, these works not works.
+    
+- Observation
+    - We observe that when serving a query, LLMs often find the necessary information in the early layers, even before generating the answer.
+    - Eg. for LLaMA 3.1, the information needed can be distilled from the attention matrix in any of the 13th-19th layers.
+
+    <img src="./pictures/GemFilter-early-layers.png" width=300>
+
+- Main Idea
+    - run the LLM inference twice
+    - first pass: run only the early layers of the LLM to select the key input tokens (based on attention matrix and select top K tokens)
+    - second pass:  we feed the selected tokens to the full LLM and run the generation function
+
+    <img src="./pictures/GemFilter-Overview.png" width=700>

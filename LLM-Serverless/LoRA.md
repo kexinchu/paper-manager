@@ -48,14 +48,20 @@ Source Code: https://github.com/punica-ai/punica
 
 - Challenges & Solutions
     - How to run multiple LoRA models efficiently on a GPU?
-        - a new CUDA kernel for adding the LoRA addons to the backbone computation in a batched manner (Segmented Gather Matrix-Vector Multiplication (SGMV))
+        - a new CUDA kernel for adding the LoRA addons to the backbone computation in a batched manner (Segmented Gather Matrix-Vector Multiplication (SGMV / BGMV))
+        - pads the adapters of smaller ranks to the higest rank to perform batch operations
 
     - how to design an efficient system on top of SGMV for multi-tenant LoRA model serving?
 
 - Asychronous loading
+    - implement layer-by-layer or matrix-by-matrix loading
+    - If the LoRA parameters need migrated from Host to GPU, let the GPU continue running other inputs in the batch
 
-- BGMV
-    - pads the adapters of smaller ranks to the higest rank to perform batch operations
+- Request migration
+    - When a GPU run out of space for KV cache, migrate some requests to other GPUs.
+    - opts recomputation instead of KV cache migration
+
+    <img src="./pictures/Punica-Request-Migration.png" width=400>
 
 
 ### S-LoRA: Serving Thousands of Concurrent LoRA Adapters 
