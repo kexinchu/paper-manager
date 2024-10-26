@@ -127,8 +127,8 @@ Paper link: https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10095889&casa_t
 ##### MLP
 - Title: Visual Instruction Tuning (LLaVA)
 Institution: University of Wisconsin-Madison, Microsoft Research   
-Conference: NeurIPS 2023
-Paper Link: https://arxiv.org/pdf/2304.08485   
+Conference: NeurIPS 2023  
+Paper Link: https://arxiv.org/pdf/2304.08485    
 Source COde: https://llava-vl.github.io   
 
 <img src="./pictures/LLaVA-Architecture.png" width=400>
@@ -228,11 +228,211 @@ Conference: 4 Feb 2024
 Paper Link: https://arxiv.org/pdf/2311.03079  
 Source Code: https://github.com/THUDM/CogVLM  
 
+- Try to solve
+    - The authors suggest that the root cause of the poor performance of shallow alignment methods is the lack of deep fusion between visual and verbal information.
+- Main Idea
+    - Add QKV matrix and FFN layer for each layer in pretrained LLMs to handle vision imformation
+- Observations
+    - Based on the source code, the vision_mlp and vision_OKV will be skipped when doing decode.
+
 <img src="./pictures/CogVLM-Architecture.png" width=400>
 
 - parameter size:
     - CogVLM2-19B
-        - Envocer: EVA-CLIP  4.8B
+        - Envocer: EVA-CLIP-E  4.8B
         - LLM: LLaMA-3  8B
         - MLP Adapter + trainable QKV + trainable FFN  6.2B
+            - MLP Adapter: two layer's MLP
+- SourceCode: [code](https://huggingface.co/THUDM/cogvlm2-llama3-chat-19B/blob/main/modeling_cogvlm.py)
+```python
+class VisionExpertAttention(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.hidden_size = config.hidden_size
+        self.num_attention_heads = config.num_attention_heads
+        self.num_multi_query_heads = config.num_multi_query_heads
+        self.hidden_size_per_attention_head = self.hidden_size // self.num_attention_heads
+        self.stride = [self.num_attention_heads, self.num_multi_query_heads, self.num_multi_query_heads]
+        self.qkv_size = self.hidden_size + self.hidden_size_per_attention_head * self.num_multi_query_heads * 2
+        self.head_dim = self.hidden_size // self.num_attention_heads
+        self.max_position_embeddings = config.max_position_embeddings
+        self.rotary_emb = FastRotaryEmbedding(dim=self.head_dim, pos_idx_in_fp32=False, base=500000)
+        # Image QKV
+        self.vision_expert_query_key_value = nn.Linear(self.hidden_size, self.qkv_size, bias=True)
+        self.vision_expert_dense = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
+        # Text QKV
+        self.language_expert_query_key_value = nn.Linear(self.hidden_size, self.qkv_size, bias=False)
+        self.language_expert_dense = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
+
+    def forward(
+            self,
+            hidden_states: torch.Tensor,
+            token_type_ids: torch.LongTensor,
+            position_ids: torch.LongTensor,
+            attention_mask: Optional[torch.Tensor] = None,
+            past_key_value: Optional[Tuple[torch.Tensor]] = None,
+            output_attentions: bool = False,
+            use_cache: bool = False,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        bsz, q_len, _ = hidden_states.size()
+
+        # vision_token_mask = torch.zeros_like(token_type_ids, dtype=torch.bool)
+        # vision_token_mask[:, :-1] = (token_type_ids[:, :-1] == VISION_TOKEN_TYPE) & (token_type_ids[:, 1:] == VISION_TOKEN_TYPE)
+        # language_token_mask = ~vision_token_mask
+        vision_token_mask, language_token_mask = get_expert_mask(token_type_ids)
+
+        shape = list(hidden_states.shape)
+        shape[-1] = self.qkv_size
+        mixed_raw_layer = torch.empty(shape, dtype=hidden_states.dtype, device=hidden_states.device)
+        mixed_raw_layer[vision_token_mask] = self.vision_expert_query_key_value(hidden_states[vision_token_mask])
+        mixed_raw_layer[language_token_mask] = self.language_expert_query_key_value(hidden_states[language_token_mask])
+
+        # query_states, key_states, value_states = torch.split(mixed_raw_layer, self.hidden_size, dim=-1)
+        factor = mixed_raw_layer.size()[-1] // sum(self.stride)
+        query_states, key_states, value_states = torch.split(mixed_raw_layer, [factor * x for x in self.stride], dim=-1)
+
+        query_states = self._transpose_for_scores(query_states)  # B, H, L, HD
+        key_states = self._transpose_for_scores(key_states)  # B, H, L, HD
+        value_states = self._transpose_for_scores(value_states)  # B, H, L, HD
+
+        # ... ...
+
+        context_layer = attention_fn(
+            query_layer=query_states, key_layer=key_states, value_layer=value_states, attention_mask=attention_mask,
+            scaling_attention_score=True, attention_dropout=None)
+       
+        attn_output = torch.empty(context_layer.shape, dtype=hidden_states.dtype, device=hidden_states.device)
+        attn_output[vision_token_mask] = self.vision_expert_dense(context_layer[vision_token_mask])
+        attn_output[language_token_mask] = self.language_expert_dense(context_layer[language_token_mask])
+
+        return attn_output
+
+
+# CogVLMDecoderLayer
+class CogVLMDecoderLayer(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.hidden_size = config.hidden_size
+        self.self_attn = VisionExpertAttention(config=config)
+        self.mlp = VisionExpertMLP(config)
+        self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+
+    def forward(
+            self,
+            hidden_states: torch.Tensor,
+            token_type_ids: torch.LongTensor,
+            position_ids: torch.LongTensor,
+            attention_mask: Optional[torch.Tensor] = None,
+            past_key_value: Optional[Tuple[torch.Tensor]] = None,
+            output_attentions: Optional[bool] = False,
+            use_cache: Optional[bool] = False,
+    ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
+        residual = hidden_states
+
+        hidden_states = self.input_layernorm(hidden_states)
+
+        # Self Attention
+        hidden_states, self_attn_weights, present_key_value = self.self_attn(
+            hidden_states=hidden_states,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            attention_mask=attention_mask,
+            past_key_value=past_key_value,
+            output_attentions=output_attentions,
+            use_cache=use_cache,
+        )
+        hidden_states = residual + hidden_states
+
+        # Fully Connected
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        hidden_states = self.mlp(hidden_states, token_type_ids=token_type_ids)
+        hidden_states = residual + hidden_states
+
+        outputs = (hidden_states,)
+
+
+# Based on LLaMAModel
+class CogVLMModel(CogVLMPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.padding_idx = 128002
+        self.vocab_size = config.vocab_size
+        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
+        self.layers = nn.ModuleList([CogVLMDecoderLayer(config) for _ in range(config.num_hidden_layers)])
+        self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+
+        self.vision = EVA2CLIPModel(config)             # Image Encoder
+
+        self.gradient_checkpointing = False
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def forward(self, input_ids, images, ...):
+        if past_key_values is not None:
+            pass  # generate mode with past_key_values. the image features are already mapped
+            # 注意，这里就没有vision_features了，对应的token_type_ids里也没有VISION_TOEKN_TYPE;
+            #  => 在 VisionExpertMLP 和 VisionExpertAttention 中执行的self.vision_mlp 和 self.vision_expert_dense() 中的输入应该为空
+        else:
+            # text-features and image features
+            inputs_embeds = self.embed_tokens(input_ids) # input_embeds size = (BatchSize, HiddenSize)
+            images_features = self.encode_images(images) # within encode_image, called self.vision(images)
+            # index_put将 images_features 插入到 input_embeds 中
+            # LANGUAGE_TOKEN_TYPE = 0
+            # VISION_TOKEN_TYPE = 1
+            # input_ids += [tokenizer.pad_token_id] * vision_token_num
+            # if images is not None and len(images) == 1:
+            #     token_type_ids += [VISION_TOKEN_TYPE] * vision_token_num
+            # token_type_ids += [LANGUAGE_TOKEN_TYPE] * len(text_ids)
+            inputs_embeds = inputs_embeds.index_put([token_type_ids == VISION_TOKEN_TYPE], images_features)
+
+        return self.llm_forward(
+            input_ids=input_ids,
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+    
+    def llm_forward(self, input_ids, token_type_ids, input_embeds, ...):
+        # mash matrix
+        attention_mask = torch.ones(
+            (batch_size, seq_length_with_past), dtype=torch.bool, device=inputs_embeds.device
+        )
+        # execute LLMs layer by layer
+        hidden_states = inputs_embeds
+        for idx, decoder_layer in enumerate(self.layers):
+            layer = self.layers[index]
+            outputs = layer(
+                hidden_states,
+                token_type_ids=token_type_ids,
+                attention_mask=attention_mask,
+                ...
+            )
+
+
+# within added FFN or QKV
+# use mask matrix to split the hidden_states into vision-part and text-part
+language_hidden_states = hidden_states[~vision_expert_mask.bool()]
+vision_hidden_states = hidden_states[vision_expert_mask.bool()]
+
+# the image-features and text-features is get-together by torch.cat
+
+
+# Main Class
+class CogVLMForCausalLM(CogVLMPreTrainedModel):
+    def __init__(self, config):
+        self.model = CogVLMModel(config)
+    
+    def forward(self, input_ids: torch.LongTensor = None, images: List[List[torch.Tensor]] = None, ...)
+        outputs = self.model(input_ids=input_ids, images=images, ...)
+
+```
     
