@@ -417,15 +417,6 @@ class CogVLMModel(CogVLMPreTrainedModel):
                 ...
             )
 
-
-# within added FFN or QKV
-# use mask matrix to split the hidden_states into vision-part and text-part
-language_hidden_states = hidden_states[~vision_expert_mask.bool()]
-vision_hidden_states = hidden_states[vision_expert_mask.bool()]
-
-# the image-features and text-features is get-together by torch.cat
-
-
 # Main Class
 class CogVLMForCausalLM(CogVLMPreTrainedModel):
     def __init__(self, config):
@@ -434,5 +425,50 @@ class CogVLMForCausalLM(CogVLMPreTrainedModel):
     def forward(self, input_ids: torch.LongTensor = None, images: List[List[torch.Tensor]] = None, ...)
         outputs = self.model(input_ids=input_ids, images=images, ...)
 
+    def _update_model_kwargs_for_generation(self, ...):
+        # update past_key_values
+        model_kwargs["past_key_values"] = self._extract_past_from_model_output(
+            outputs, standardize_cache_format=standardize_cache_format
+        )
+
+        # update token_type_ids with last value (only 1 text token in toke_type_id)
+        if "token_type_ids" in model_kwargs:
+            token_type_ids = model_kwargs["token_type_ids"]
+            new_token_type_ids = torch.ones(size=(token_type_ids.shape[0], 1), dtype=token_type_ids.dtype, device=token_type_ids.device) * LANGUAGE_TOKEN_TYPE
+            model_kwargs["token_type_ids"] = torch.cat([token_type_ids, new_token_type_ids], dim=-1)
+
 ```
     
+
+Title: Cogvlm: Visual expert for pretrained language models
+Institution: Tsinghua University   
+Conference: 4 Feb 2024  
+Paper Link: https://arxiv.org/pdf/2311.03079  
+Source Code: https://github.com/THUDM/CogVLM ; https://huggingface.co/THUDM/cogvlm2-llama3-chat-19B/blob/main/modeling_cogvlm.py
+
+Title: PyramidDrop: Accelerating Your Large Vision-Language Models via Pyramid Visual Redundancy Reduction
+Institution: USTC, Shanghai AI labs
+Conference: ArXiv 22 Oct 2024
+Paper Link: https://arxiv.org/abs/2410.17247
+Source Code: https://github.com/Cooperx521/PyramidDrop
+
+Title: IPL: Leveraging Multimodal Large Language Models for Intelligent Product Listing
+Institution: Alibaba, Fudan University
+Conference: ArXiv 22 Oct 2024
+Paper Link: https://arxiv.org/pdf/2410.16977
+
+Title: POD-Attention: Unlocking Full Prefill-Decode Overlap for Faster LLM Inference
+Institution: Microsoft
+Conference: ArXiv 23 Oct 2024
+Paper Link: https://arxiv.org/pdf/2410.18038
+Source Code: https://github.com/microsoft/vattention/tree/main/pod_attn
+
+Title: MM-LLMs: Recent Advances in MultiModal Large Language Models
+Institution: Tencent AI Lab
+Conference: ArXiv 28 May 2024
+Paper Link: https://arxiv.org/abs/2401.13601
+
+Title: Apparate: Rethinking Early Exits to Tame Latency-Throughput Tensions in ML Serving
+Institution: Princeton
+Conference: ArXiv 23 Sep 2024
+Paper Link: https://arxiv.org/abs/2312.05385
