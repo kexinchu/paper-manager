@@ -58,3 +58,57 @@ Conference: ICML 2024
 Institution: UCSD
 Paper Link: 
 
+### Title：UELLM: A Unified and Efficient Approach for Large Language Model Inference Serving
+Conference: ArXiv Sep 24 2024   
+Institution: Shenzhen Institute of Advanced Technology, CAS    
+Paper Link: https://arxiv.org/html/2409.14961v1
+
+##### Key Point
+- Scheduling with limited SLO
+- Problems for existing real-time inference services:
+    - increasing the number of GPUs may lead to a decrease in inference speed due to heightened communication overhead, while an inadequate number of GPUs can lead to out-of-memory errors. 
+    - different deployment strategies need to be evaluated to guarantee optimal utilization and minimal inference latency. 
+    - inefficient orchestration of inference queries can easily lead to significant Service Level Objective (SLO) violations.
+- Two Challenges:
+    - the challenge of efficiently batching diverse inference requests (different length)
+    - the difficulty of effectively utilizing resources during LLM inference due to the extensive search space and diverse model structures.
+- Onservations:
+    - Slight changes in deployment configurations can have a significant impact on LLM inference performance.
+
+    <img src="./pictures/UELLM-table1-oberservation1.png" width=500>
+
+    - Batching multiple requests can reduce the SLO violation rate of LLM inference services under a large number of inference requests.
+        - Requests may arrive at different times
+        - Requests may have vastly different input and output lengths.
+
+    <img src="./pictures/UELLM-figure1-oberservation2.png" width=500>
+- Solutions:
+    - resource profier
+        - key point: predict the LLM output length, 
+        - use a fine-tuned ChatGLM3-6B model to predict the output length (more than 80% accuracy)
+
+    - batch scheduler
+        - batching requests with similar input lenth and output length, also considered the total latency
+        - SLO-ODBS algorithm: consider the total latency $T_l$ and total output length $T_o$
+
+        $$
+        \max_{w_1,w_2}{\left(w_1*T_l+w_2*T_o\right) <= Threshold}  \\
+        \\
+        T_l = \sum_{i=1}^{N}{\left(\left(SLO_i+L_{CM}\right)*\left(|batch_c|+1\right)*L_1\right)} \\
+        \\
+        T_o = \sum_{i=1}^{N}{\left(\left(Length_i+O_{CM}\right)*\left(|batch_c|+1\right)*L_2\right)}
+        $$
+
+        - paramters
+            - $batch_c$: the current batch to be combined
+            - $L_{CM}$: the current maximum latency 
+                - CM is the current maximum composite netrix
+            - $O_{CM}$: the current maximum output length
+            - $L_1$, $L_2$ represent the additional overhead due to parallel computing
+            - weights $w_1$ and $w_2$ to balance the importance of these two factors
+
+    - LLM deployer
+        - arranges the layers of the LLM according to the topology of the current system’s hardware accelerators and the computational characteristics of each LLM layer.
+        - => a dynamic programming problem
+
+    <img src="./pictures/UELLM-overview.png" width=600>

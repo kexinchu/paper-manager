@@ -131,3 +131,14 @@ Source Code: https://github.com/SalesforceAIResearch/GemFilter
     - second pass:  we feed the selected tokens to the full LLM and run the generation function
 
     <img src="./pictures/GemFilter-Overview.png" width=700>
+
+
+### Title*: POD-Attention: Unlocking Full Prefill-Decode Overlap for Faster LLM Inference 
+Institution: Microsoft   
+Conference: ArXiv 23 Oct 2024   
+Paper Link: https://arxiv.org/pdf/2410.18038   
+Source Code: https://github.com/microsoft/vattention/tree/main/pod_attn   
+
+##### Key Idea
+- 从CUDA的角度，实现prefill任务和decode任务的同时执行
+- SM-aware CTA Scheduling

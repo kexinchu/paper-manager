@@ -104,8 +104,19 @@ Paper Link: https://arxiv.org/abs/2408.04275
         <img src="./pictures/DistTrain-stragger.png" width=800>
 
 ### Title: EE-MLLM: A Data-Efficient and Compute-Efficient Multimodal Large Language Model 
-Conference: Sep 9 2024 
-Institution: BUPT, PKU and THU 
-Paper Link:  
+Conference: Sep 9 2024   
+Institution: BUPT, PKU and THU   
+Paper Link: https://arxiv.org/abs/2408.11795    
 
+##### Key Idea
 - proposed a new MLLM architecture, in algorithm area.
+
+
+### Title: MIA-DPO Multi-Image Augmented Direc Preference Optimization For Large Vision-Language Modles
+Conference: ArXiv 23 Oct 2024    
+Institution: SJTU & Shanghai AI Lab
+Paper Link: https://arxiv.org/abs/2410.17637
+
+##### Key Idea
+- attention values of LVLMs vary considerably across different images. We use attention values to identify and filter out rejected responses the model may have mistakenly focused on.
+- 针对模型训练的方法优化
