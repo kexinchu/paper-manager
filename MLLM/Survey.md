@@ -438,3 +438,37 @@ class CogVLMForCausalLM(CogVLMPreTrainedModel):
             model_kwargs["token_type_ids"] = torch.cat([token_type_ids, new_token_type_ids], dim=-1)
 
 ```
+
+### Title: SPHINX: THE JOINT MIXING OF WEIGHTS, TASKS, AND VISUAL EMBEDDINGS FOR MULTI-MODAL LARGE LANGUAGE MODELS
+Institution: Shanghai AI Lab && MMLab, CUHK     
+Conference: ArXiv 13 Nov 2023    
+Paper Link: https://arxiv.org/pdf/2311.07575    
+
+##### Key Point
+- leveraging multiple vision encoders to enrich visual content
+
+<img src="./pictures/SPHINX-architecture.png" width=400>
+
+### Title: CuMo: Scaling Multimodal LLM with Co-Upcycled Mixture-of-Experts
+Institution: Georgia Tech & UIUC   
+Conference: ArXiv 9 May 2024    
+Paper Link: https://arxiv.org/pdf/2405.05949v1    
+
+##### Key Point
+- create a new architecture of LVLM
+- incorporates Top-K sparsely-gated MoE blocks into both the vision encoder and the MLP connector
+- For Training
+    - the weight parameter of MoE is copied from the pre-trained MLP and CLIP parameters (called Co-Upcycle)
+
+<img src="./pictures/CuMo-Architecture.png" width=400>
+
+### Title: Uni-MoE: Scaling Unified Multimodal LLMs with Mixture of Experts
+Institution: HIT  
+Conference: ArXiv 18 May 2024    
+Paper Link: https://arxiv.org/pdf/2405.11273v1   
+Source Code: https://github.com/HITsz-TMG/UMOE-Scaling-Unified-Multimodal-LLMs    
+
+##### Key Point
+- develop a unified MLLM with the MoE architecture, named Uni-MoE that can handle a wide array of modalities. Specifically, it features modality-specific encoders with connectors for a unified multimodal representation. 
+
+<img src="./pictures/Uni-MoE-Architecture.png" width=300>

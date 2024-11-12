@@ -112,3 +112,60 @@ Paper Link: https://arxiv.org/html/2409.14961v1
         - => a dynamic programming problem
 
     <img src="./pictures/UELLM-overview.png" width=600>
+
+
+### Title: Apparate: Rethinking Early Exits to Tame Latency-Throughput Tensions in ML Serving 
+Institution: Princeton   
+Conference: ArXiv 23 Sep 2024   
+Paper Link: https://arxiv.org/abs/2312.05385   
+
+##### Key Point
+- Problem:
+    - two competing goals: ensuring high throughput given many requests, and delivering low-latency responses to support interactive applications
+
+- Early Exist: 
+    - the key premise is that certain ‘easy’ inputs may not require the full predictive power of a model to generate an accurate result.
+    - results for such inputs may be predictable from the values at intermediate layers.
+
+### Title: FIRP: Faster LLM inference via future intermediate representation prediction
+Institution: Peking University & Meta AI   
+Conference: ArXiv 27 Oct 2024   
+Paper Link: https://arxiv.org/pdf/2410.20488   
+
+##### Key Point
+- Like Medusa
+- introduce a novel speculative decoding method named
+FIRP which generates multiple tokens instead of one at each decoding
+step. 
+
+### Title: PipeLLM: Fast and Confidential Large Language Model Services with Speculative Pipelined Encryption
+Institution: SJTU & Northeastern   
+Conference: ASPLOS 2025   
+Paper Link: https://arxiv.org/pdf/2411.03357    
+
+##### Key Point
+- The security risks for LLMs; 
+    - The LLM’s reliance on high-end GPUs, many businesses opt for outsourced services, such as cloud. However, these cloud infrastructures, often complex in nature, encompass a large Trusted Computing Base (TCB), which may contain vulnerabilities, both publicly reported and zeroday
+
+    <img src="./pictures/PipeLLM-NVIDIA-CC.png" width=400>
+
+- The heavy encrypt and Decrypt
+    
+    <img src="./pictures/PipeLLM-heavy-encrypt-decrypt.png" width=300>
+
+- Solution:
+    - decouples encryption tasks from the critical path of the memory swapping mechanism, by leveraging speculative pipelined encryption
+    - integrating predictions, encryptions, and data transfers into a pipeline
+
+    - Challenges: How to predict the next several memory copies and their Initialization Vectors
+        - Given n the current IV and the execution context
+    
+    - Observation:
+        - the size of memory swapping (usually > 128KB) is significantly larger than other data transfers (usually < 8KB)
+        - can distinguish model offloading and KV cache swapping by calculating their sizes ahead of time based on the target LLMs
+            - parameters swap follow the Repetitive pattern (FlexGen)
+            - KV cache swap follows:
+                - layer-wise: FIFO
+                - request-wise: LIFO (最先offload的请求最不重要)
+    
+    <img src="./pictures/PipeLLM-Architecture.png" width=400>
