@@ -135,8 +135,7 @@ Paper Link: https://arxiv.org/pdf/2410.20488
 ##### Key Point
 - Like Medusa
 - introduce a novel speculative decoding method named
-FIRP which generates multiple tokens instead of one at each decoding
-step. 
+FIRP which generates multiple tokens instead of one at each decoding step. 
 
 ### Title: PipeLLM: Fast and Confidential Large Language Model Services with Speculative Pipelined Encryption
 Institution: SJTU & Northeastern   
