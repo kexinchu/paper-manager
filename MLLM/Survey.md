@@ -472,3 +472,11 @@ Source Code: https://github.com/HITsz-TMG/UMOE-Scaling-Unified-Multimodal-LLMs
 - develop a unified MLLM with the MoE architecture, named Uni-MoE that can handle a wide array of modalities. Specifically, it features modality-specific encoders with connectors for a unified multimodal representation. 
 
 <img src="./pictures/Uni-MoE-Architecture.png" width=300>
+
+
+### Title: Q-MoE: Connector for MLLMs with Text-Driven Routing
+Institution: Beijing University of Posts and Telecommunications    
+Conference: MM 2024    
+Paper Link: https://dl.acm.org/doi/abs/10.1145/3664647.3681369   
+
+<img src="./pictures/Q-MoE-Architectures.png" width=600>

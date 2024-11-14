@@ -124,3 +124,63 @@ Paper Link: https://arxiv.org/pdf/2409.12210
 - Load Balance
     - For different model size, use expert-pair allocation.
     - The token routing selection: MoDSE exhibits an equally even distribution as the baseline. 
+
+
+### Title: ProMoE: Fast MoE-based LLM Serving using Proactive Caching
+Institution: SJTU & Zhejiang University    
+Conference: ArXiv 29 Oct 2024    
+Paper Link: https://arxiv.org/html/2410.22134v1    
+
+##### Key Point
+- Their main idea is similar to pre-gated MoE
+- Predict the expert of layer i+K based on the activations in layer i, then prefetch parameters from CPU memory.
+    - MoE activate only a subset of the experts
+
+    <img src="./pictures/ProMoE-actived-parameters.png" width=400>
+
+    - consumer-grade GPU with limited capacities(HBM)
+- Observation:
+    - for traditional encoder-decoder MoE models, the access frequencies of different experts follow a power-law distribution, with a small number of experts accessed more frequently than others. 
+    - modern decoder-only MoE models exhibit a more uniform access pattern
+
+    <img src="./pictures/ProMoE-expert-hit-rate.png" width=400>
+
+- Existing works:
+    - Iteration-wise Prefetch
+        - previous works indicate that the selection of experts in one iteration is highly related to the input token id
+        - static predict at the beginning of the iteration
+        - Shortage: low predict accuracy, especially for deeper layers(less than 50%). => because the input token id lacks the context information of the entire sequence,
+    - Layer-wise Prefetch
+        - predicting the experts of 𝑖 + 1-th layer at the time of 𝑖-th layer.
+        - like pre-gate MoE
+        - high predict accuracy (> 90%)
+        - Shortage: can only predict the experts for one layer ahead, leaving less chance for prefetching to complete in time. => Low prefetch rate.
+    - Stride Prefetch
+        - This paper's work
+    
+    <img src="./pictures/ProMoE-existing-works.png" width=400>
+
+- Solutions
+    - Proactive Caching moves data transfers out of the critical path, allowing them to overlap with inference.
+    - compared with **LRU** strategy
+    - Two component (on CPU)
+        - Prefetcher: Sliding-windows Prefetching
+            - Main problem: Predict Accuracy
+        - Predictor
+            - a small neural network (MLP), higher accuracy
+    - Coordination of Prefetching and Inference
+        - Priority:
+            - low-priority speculative prefetch tasks provided by the predictor
+            - high-priority precise prefetch tasks triggered by cache misses during LLM inference.
+        - Chunked Prefetch
+            - Due the limitation of CUDA's asychronous copy mechanism, current copy task can not be preempted, the high-priority prefetch tasks must be wait for current tasks. => Cache miss & Inference Idle
+            - split expert parameters into chunks, and add them to the prefetch queue as low priority tasks.
+        - Early Preemption
+            - When required expert not in HBM, in traditional, the cache miss are only detected and handled when the corresponding expert is accessed during inference. => waiting for parameters transfer from CPU memory
+            - Actually, the required expert set is determined all at once when the gate operation completes. 
+            - Instead of triggering a cache miss when each individual expert is accessed, let the system preempt the prefetch queue in advance when it knows which experts will be used after the gate operation.
+        - Reordered Inference
+            - In the inference process of LLMs, existing frameworks typically execute computations for different experts in the order of their IDs. => fails to fully utilize the cache status of experts
+            - The experts alreeady in the cache are prioritized,
+            - Then the experts currently being prefetched (if any)
+            - the experts whose prefetch has not yet begun are orderd last.
