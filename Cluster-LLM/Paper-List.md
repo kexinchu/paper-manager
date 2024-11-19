@@ -168,3 +168,23 @@ Paper Link: https://arxiv.org/pdf/2411.03357
                 - request-wise: LIFO (最先offload的请求最不重要)
     
     <img src="./pictures/PipeLLM-Architecture.png" width=400>
+
+
+### Title: Metis: Fast Automatic Distributed Training on Heterogeneous GPUs  
+Institution: Samsung Research & UNIST    
+Conference: ATC 2024   
+Paper Link: https://www.usenix.org/conference/atc24/presentation/um    
+Slides:https://www.usenix.org/system/files/atc24_slides-um.pdf     
+
+##### Key Point
+- For clusters with heterogeneous GPUs
+- Existing works didn't consider the difference in heterogeneous GPUs
+    - different HBM size per device
+    - different computation capacity per device
+    - different number of GPUs per node
+- Shortages of existing works on heterogeneous clusters
+    - Limited search space in device groups: With heterogeneous GPUs, a device group can vary in size and consist of either hemogeneous or heterogeneous GPUs. Which is not considered
+    - Limited load balancing:  the device differ in computing and memory capacities
+    - Time-consuming search algorithm
+
+    <img src="./pictures/Metis-existing-auto-parallelizer.png" width=400>
