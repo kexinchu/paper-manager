@@ -123,3 +123,23 @@
         - KV cache of standard attention layers can be shared between non-consecutive layers without any observed degradation in long context abilities.
 
     <img src="./pictures/MixAttention-Samples.png" width=400>
+
+
+### Token Selection
+- with token eviction method (potentially evict part of KV cache), leading to significant information loss
+- New Method: 
+    - saving all the KV cache in external-memory
+    - selecting only the most critical KV pairs to reduce data transfer
+ 
+- Title: SparQ Attention: Bandwidth-Efficient LLM Inference 
+    - Conference: ICML 2024 
+    - Institution: Graphcore Research, United Kingdom 
+    - Paper Link: https://arxiv.org/pdf/2312.04985 
+
+- Title: MAPLE: Memory-Aware Predict and Load for Efficient LLM Inference 
+    - Conference: NeurIPS 2024 
+    - Institution: ECSE, Rensselaer Polytechnic Institute & UIUC 
+    - Paper Link: https://openreview.net/pdf?id=Vj3dYidMc6 
+
+
+<img src="./pictures/MAPLE-dataflow.png" width=800>
