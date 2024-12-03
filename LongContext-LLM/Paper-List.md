@@ -124,3 +124,36 @@ Source Code: https://github.com/LMCache/LMCache
 Institution: USTC&Arizona   
 Conference: ArXiv 23 Oct 2024    
 Paper Link: https://arxiv.org/pdf/2410.14740   
+
+### Title: Pie: Pooling CPU Memory for LLM Inference
+Institution: UC Bekeley  
+Conference: ArXiv 14 Nov 2024  
+Paper Link: https://arxiv.org/pdf/2411.09317    
+
+### Title： Squeeze Attention: Accelerating Long Context Length LLM Inference
+Institution: UC Bekeley  
+Conference: ArXiv 23 Nov 2024  
+Paper Link: https://arxiv.org/pdf/2411.09688   
+Source Code: https://github.com/SqueezeAILab/SqueezedAttention    
+
+- Key Idea
+    - For many applications such as in-context learning, document QA, and code generation, over a series of prompts a large portion of the input context is fixed. 
+    -  leverage K-means clustering offline to group the keys for the fixed context based on semantic similarity and represent each cluster with a single centroid value. During inference, we compare query tokens from the user input with the centroids to predict which of the keys from the fixed context are semantically relevant and need to be loaded during inference. We then compute exact attention using only these important keys from the fixed context, thereby reducing bandwidth and computational costs.
+
+### Title: Efficient LLM Inference with I/O-Aware Partial KV Cache Recomputation
+Institution: University of Southern California  
+Conference: ArXiv 26 Nov 2024  
+Paper Link: https://arxiv.org/pdf/2411.17089   
+
+- Key Idea
+    - When using CPU to execute attention like FastDecode, they depend on CPU resources that may not always be available due to competing workloads
+    - initially, the activations, which are smaller in size, required to generate part of the KV cache are sent to the GPU. The GPU then recomputes this partial KV cache from the input activations while the remaining KV cache over PCIe bus is transferred simultaneously.
+
+    <img src="./pictures/IO-Recompute-Row-by-Row.png" width=400>
+    <img src="./pictures/IO-Recompute-Col-by-Col.png" width=400>
+
+
+### Title: Attamba: Attending To Multi-Token States
+Institution: Cornell University & Google  
+Conference: ArXiv 26 Nov 2024  
+Paper Link: https://arxiv.org/pdf/2411.17685   
