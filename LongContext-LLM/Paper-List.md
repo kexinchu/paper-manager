@@ -157,3 +157,9 @@ Paper Link: https://arxiv.org/pdf/2411.17089
 Institution: Cornell University & Google  
 Conference: ArXiv 26 Nov 2024  
 Paper Link: https://arxiv.org/pdf/2411.17685   
+
+- Key Point
+    - use State-Space Models
+        - Auto-regressive transformers and SSMs enable us to compress information about prior tokens into a singular, final representation.
+
+    <img src="./pictures/Attamba-SSM.png" width=300>
