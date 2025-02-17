@@ -20,7 +20,6 @@ full-data consistency. But none of them scales beyond 16 cores.
     - Romulus and KaminoTX minimize write amplification by maintaining a full backup of the NVMM, which reduce the cost-effectiveness of NVMM
     - Pisces providing snapshot isolation to provide scalability. It also will incur high write amplification + require high isolation guarantee
 
-
 ## Designs
 ### Design Goals
 - given the shortage of NVMM writes (high latency, limited endurance, high energy consumption), DTM system should be **write-aware**.
@@ -89,7 +88,6 @@ full-data consistency. But none of them scales beyond 16 cores.
     - high write latency
     - high write power consumption
     - limited write endurance
-
 
 ### DTM - Durable Transaction Memory (持久事务内存)
 - 确保即使崩溃，DTM system 可以通过硬件支持和日志记录来确保事务的原子性和持久性

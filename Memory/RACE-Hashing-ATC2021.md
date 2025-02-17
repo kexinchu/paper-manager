@@ -7,19 +7,80 @@ Conference: ATC 2021
 ## Key Point
 ### Try to Solve?/Motivation
 - Problem:
-    - traditional hashing indexes become ineffificient for disaggregated memory since the computing power in the memory pool is too weak to execute complex index requests
-    - 数据分布在存储节点之间分布不均（负载不均衡），当添加/移除存储节点时，导致大量的数据迁移
+    <!-- - traditional hashing indexes become ineffificient for disaggregated memory since the computing power in the memory pool is too weak to execute complex index requests -->
+    
+    - Hashing System可以快速定位数据，优化RDMA访问性能 (本地 ns-level latency, RDMA remote access ms-level latency)
+    - existing works (FaRM, DrTM) 在处理 Insert, Delete, Update时需要remote CPU在本地执行。这与disaggregated memory系统冲突：memory pool侧的计算能力很低，无法满足要求
+
+    <!-- - 数据分布在存储节点之间分布不均（负载不均衡），当添加/移除存储节点时，导致大量的数据迁移
     - 扩展性差，扩展hash table时需要重新hash所有数据
-    - 高网络开销：需要多次网络往返来解决哈希冲突或进行数据查找
+    - 高网络开销：需要多次网络往返来解决哈希冲突或进行数据查找 -->
 
 - Challenges:
-    - Many remote reads&writes for handling hash collisions. (move data to make room for newly inserted items, these remote access produces RDMA network round-trip)
-    - Concurrency control for remote access. (lock for local hashing indexes have low overhead(ns-level); remote locking requires RDMA "ATOMIC" verbs with ms-level latency)
+    - Many remote reads&writes for handling hash collisions. (move data to make room for newly inserted items, these remote access produces RDMA network round-trip) —— 解决hash冲突的过程会导致大量remote读写
+    - Concurrency control for remote access. (lock for local hashing indexes have low overhead(ns-level); remote locking requires RDMA "ATOMIC" verbs with ms-level latency) —— 远程操作并发控制，如果用lock，当发生lock竞争时，会导致高latency
     - Remote resizing of hash tables,
-        - full-table resizing needs to move all key-value items from old-hash to new-hash
-        - for extendible resizing, it reduced the number of moved items, but it need one extra RDMA READ(first accessing the directory of the hash table)
-        - it is challenging to concurrently access the hash table during resizing.
+        - **full-table resizing** needs to move all key-value items from old-hash to new-hash
+        - for extendible resizing, it reduced the number of moved items, but it need **one extra RDMA READ**(first accessing the directory of the hash table)
+        - it is challenging to concurrently access the hash table during resizing. —— resize的同时保持并发访问
 
+- How to solve these Challenges
+    - 解决hash冲突导致的大量remote读写
+        - 问题的原因：
+            - 发生hash冲突 -> no empty slot in the bucket to keep new inserted key-value -> 将existing key-value驱逐到其他bucket中，或者为新key-value寻找新的empty slot （需要数据移动）. 这在已有的方法中，都需要遍历多个bucket，造成大量的 RDMA 读写。
+        - 解决方法：
+            - RDMA-conscious Hash Subtable, 不允许数据移动。 => 如何解决hash冲突？
+            - 1，k-way association: 一个bucket中有多个slot，且地址连续，可以在一次RDMA READ 中读取全部slot。 —— 减小hash冲突的概率
+            - 2，2-choice：同时使用两个hash function，insert new key-value item 可以插入两个bucket中 负载较小的那个。 —— 减少冲突的概率
+            - 3，overflow colocation: 在两个main bucket之间加上overflow bucket，并被前后两个bucket share。地址连续可以通过一次RDMA READ访问。
+                - 即使有1，2中的冗余slot，但是随着数据访问的增加，hash冲突无法避免；所以当hash重复发生时，局部化hash冲突，写入overflow bucket. —— 避免移动数据
+                - 当overflow bucket被填满，RACE Hashing触发 extendible resizing
+        
+        <img src="./pictures/RACE-hash-subtable-structure.jpg" width=600>
+    
+    - lock-free 远程并发控制
+        - Note: 
+            - key-value block是一个存储实际key-value数据的内存块，在memory pool中。 存储了key, value, key_len, value_len等
+            - slot是hash table中的最小memory块，存储 fingerprint (hash tag), length, 指向实际key-value block的地址，也存储在memory pool中
+        - 直接 lock-free，多个client可能会同时修改hash表，导致数据不一致。比如同时插入相同数据导致数据重复
+        - 通过RDMA CAS原子操作来确保当前client对slot修改时，slot内的数据没有被其他的client修改
+        - Insert，Delete，Update Ops 第一时间都不修改原key-value block
+            - lock-free Insert
+                - 先将key-value写入memory pool，得到一个address。
+                - search bucket并通过RDMA CAS来写key-value block到bucket中的一个empty slot
+                - CAS失败说明其他client修改了当前slot中的address, client会重试
+                - 无法避免写入重复数据，增加一个re-read bucket处理，只保留一个valid key (最小bucket id 和 最小slot id)
+            - lock-free Delete
+                - 先通过RDMA CAS修改slot为null，成功后clent端将key-value block设置为全0 并释放
+            - lock-free Update
+                - client先将新的key-value 写入remote memory pool, 得到一个新的key-value block地址
+                - 通过RDMA CAS将slot内的地址更新为指向新的key-value block, 成功后client释放原本的key-value block
+        - 如果RDMA READ 和 IUD 操作同时发生，可能会读到修改中的key-value block, 增加校验位 CRC
+        
+        <img src="./pictures/RACE-bucket_structure.png" width=600>
+    
+    - remote-resizing
+        - extendible resizing instead of full-table resizing
+
+        - 解决增加的 one extra RDMA READ to get Subtable
+            - client 端缓存 directory 来定位Subtable
+        - 解决resize过程中，memory pool weak compute resource的问题
+            - RACE 将扩容操作交给CPU client
+            - client 计算完之后，将新的subtable和directory同步给memory pool
+            - 新问题：当前client修改memory pool，导致其他client数据“过期”
+                - existing works通过广播 和 主动更新的方式会增加开销
+                - RACE中，先继续使用旧directory，但是增加校验 (校验local depth 的长度)
+        
+        <img src="./pictures/stable-read.png" width=600>
+
+        - 解决resize的同时支持并发访问
+            - 保证目录的初始地址不变 -> resize不影响原有数据的访问
+            - 分成used area 和 unused area. 其他client保存了used area的directory。通过global depth(GD 固定地址)来获取directory used area的深度
+            - resizing的同时，lock entry来避免其他clent对当前entry修改，但是对原本读写不受影响。
+
+        <img src="./pictures/RACE-Resizing.png" width=600>
+
+## Details
 - Motivation:
     - fully relies on one-sided RDMA verbs to effificiently execute all index requests
     - for resizing, RACE hash table consists of multiple subtables and a directory which is used to index subtables.
