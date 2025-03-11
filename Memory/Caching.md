@@ -1,4 +1,4 @@
-## Ditto: An Elastic and Adaptive Memory-Disaggregated Caching System
+# Ditto: An Elastic and Adaptive Memory-Disaggregated Caching System
 
 ```
 Institution: The Chinese U of HK & Huawei Cloud
