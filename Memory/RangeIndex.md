@@ -52,6 +52,11 @@ OSDI' 2023
 ### Solve these challenges
 - 解决 the costly lock-based concurrency control
     - a hybrid adaptive radix tree(ART) concurrency control: a lock-free internal node design and a lock-based leaf node design
+    - homogeneous adaptive internal node
+        - a naive ART stores partial keys and child pointers separately => hard for lock-free design
+        - embeds the partial keys into slots => 可以原子的修改partial key + child pointer
+
+    - Pessimistic 8-byte header of the internal node (悲观方法)
 
 - 解决 the IOPS breakthrough
     - a read-delegation and write combining(RDWC) technique
