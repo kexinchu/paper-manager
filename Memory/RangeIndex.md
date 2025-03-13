@@ -57,6 +57,21 @@ OSDI' 2023
         - embeds the partial keys into slots => 可以原子的修改partial key + child pointer
 
     - Pessimistic 8-byte header of the internal node (悲观方法)
+        - 路径压缩的三种方法
+            - Pessimistic method
+                - 将被压缩节点的所有partial key存储在后续节点的 header 中
+                - 优点：可以在一次遍历中完成插入，因为所有的partial key都在header中
+                - 缺点：可能会增加树的高度，因为如果partial key过多，需要额外的节点来存储
+            - Optimistic method
+                - 简单的丢弃被压缩节点的partial key，只存储depth value
+                - 优点：减少内存占用
+                - 缺点：插入时需要2次遍历，第一遍查询缺失的partial key；第二次遍历用于实际插入
+            - Hybrid method
+                - 在后续节点的header存储partial key，但当partial key过多时，会将超出的部分存储在Node中
+                - 优点：在内存占用和插入效率之间取得平衡
+                - 缺点：1，通常插入也需要2次遍历，第一次获取缺失的partial key；2，需要管理header + 后续node中的partial key，复杂度高 
+        - SMART使用悲观方法来实现路径压缩
+            - 针对Radix-tree树高度增加的问题，SMART通过缓存机制来减少对远程内存的访问，提高性能
 
 - 解决 the IOPS breakthrough
     - a read-delegation and write combining(RDWC) technique
