@@ -34,3 +34,26 @@
 - CXL技术支持在多台计算设备之间共享内存，降低了内存冗余
 - CXL支持内存虚拟化，可以根据应用负载动态分配内存资源
 - 更好的拓展性，热插拔
+
+
+## Revisiting Distributed Memory in the CXL Era
+- blog: https://www.sigops.org/2024/revisiting-distributed-memory-in-the-cxl-era/
+    - Tsinghua
+    - DSM vs MP : 
+        - DSM 提供了一个同一的内存空间，从而消除了显示数据通信的开销 (不再需要将数据从一个node向另一个node copy，而是只需要交换 reference 即可)
+        - CXL 2.0 开始引入 memory pool, 可以创建全局memory pool，优化整体内存利用率。
+            - 通过 CXL交换机 + 内存控制器实现
+        
+    <img src="./pictures/CXL-pass-by-ref.png" width=600>
+
+    <img src="./pictures/CXL-kvstore-by-ref.png" width=600>
+
+    - 基于CXL的DSM面临的挑战
+        - 本质上，我们面临的挑战源于共享分布式对象和引用它们的客户端的独立故障域。这种分离允许客户端在操作期间自由加入、离开甚至失败，因为它们会创建、释放和交换对远程内存的引用。虽然这种灵活性对用户友好，但它对内存管理提出了重大挑战。我们将其称为部分故障弹性 DSM (RDSM)，以将其与所有客户端同时失败的情况区分开来。我们认为有效处理部分故障对于扩大 DSM 的使用至关重要。
+    
+        - https://dl.acm.org/doi/10.1145/3600006.3613135 
+    
+    - Latency
+        - TCP/IP 需要 100us+ 的latency
+        - RDMA 需要 ~2us 的access latency
+        - CXL 需要 < 400ns 的access latency
