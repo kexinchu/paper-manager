@@ -105,7 +105,9 @@ Conference: FAST'25 BestPaper
         - 将keep alive的container，逐步卸载 数据到remote memory (RDMA) FaaSMem-ASPLOS'24
         - **空间 + 时间的考虑？**
         - 分层 - init, runtime 等 rainbowcake
+        - RDMA write remote memory (sharing)
         - container的放置/数据的放置
+        - memory page的sharing + 使用DM来解决什么问题；以及有什么场景。
     - 有状态 task状态同步
         - 有状态 functions依赖message或者global storage同步states
         - 通过RDMA直接访问remote memory中的状态
