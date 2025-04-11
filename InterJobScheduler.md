@@ -90,6 +90,12 @@
     - cold checkpoint 开销大
         - checkpoint + replace + restart
         - jobs 要停下来： 为新的node创建网络连接 (NCCL ring)
+    - HPC 的特点：
+        - 资源共享，多个用户或者任务共享一个高性能集群
+        - 资源分配按照作业调度系统(如Slurm)进行管理，任务需要排队
+        - 资源使用通常是长期的，蛇和长时间运行的计算任务
+        - 通常使用专用硬件: 如InnifiBand 网络, GPU集群
+        - 依赖于并行计算框架
 
 - Solutions
     - Live Migration: 尽可能任务不停
@@ -147,3 +153,6 @@
     - 问题：依赖于NCCL 超时时间来判断node loss，有延迟；如何实时的detect node fail
     - 通过heartbeat / moniter来监听GPU
     - 故障分级：有些故障是否可以原地重启，比如GPU thread killed (验证)
+
+
+# https://www.one-tab.com/page/1QOuUfuYT6S3-RLg7WK55w
