@@ -155,4 +155,12 @@
     - 故障分级：有些故障是否可以原地重启，比如GPU thread killed (验证)
 
 
-# https://www.one-tab.com/page/1QOuUfuYT6S3-RLg7WK55w
+- ML任务的checkpoint
+    - checkpoint per iteration & checkpoint compression
+        - ExCP通过权重和动量联合剪枝以及非均匀量化来实现极高的压缩率。这种方法结合了剪枝和量化，可以显著减少checkpoint的存储需求。
+        - 量化和压缩结合的方法：Check-QZP提出了一种结合量化、并行和压缩的方法来优化checkpoint操作。通过将模型参数从GPU内存复制到主机内存，然后进行量化和压缩
+        - 
+    - data transfer & storage
+        - Checkpoint分片，避免所有GPU都去读 Storage，借助GPU-GPU空闲带宽传递参数
+        - Asynchro 异步传输，借助空闲带宽
+        - 
