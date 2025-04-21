@@ -1,10 +1,82 @@
 ## DSM & Serverless
 
-###  TrEnv: Transparently Share Serverless Execution Environments Across Different Functions and Nodes
+### CXLfork - ASPLOS'25
+```shell
+Mitosis: No Provisioned Concurrency: Fast RDMA-codesigned Remote Fork for Serverless Computing 
+Conference: OSDI'23
+Institution: SJTU Haibo Chen
+
+CXLfork: Fast Remote Fork over CXL Fabrics
+Conference: ASPLOS'25
+Institution: UIUC Tianyin Xu
+```
+- Existing works
+    - CRIU (Checkpoint and Restore in Userspace)
+        - checkpoint: 
+            - 借助storage 传递states
+            - 借助protocol buffer将process state(virtual memory areas, page tables, open files, namespaces, and CPU registers) + memory page serialize to file
+        - restore: load file + deserialize the checkpoints
+        - 开销高：fork BERT instance，比local fork消耗2.7X Lat + 42X Mem
+    - Mitosis, based on RDMA
+        - avoids (de)serializes by use RDMA lazy copy (for memory page)
+        - checkpoint阶段依旧需要serialize OS-managed states
+        - restore阶段：parent node通过One-side RDMA将序列化的OS-managed state传输给remote node，remote node对齐反序列化 + 创建新process
+        - skip the serialization, checkpoint states和创建node + parent process耦合在一起，导致parent process在其所有(remote) child processes终止之前无法退出；使得进程的生命周期管理变得复杂
+- Idea
+    - 在CXL共享内存中checkpointing + restoring可以避免state serialization + transfer开销
+        - decouple process state with process/OS
+        - 不需要序列化，cloned node可以直接并发访问
+    - Observation: 不同 function's footprint 划分为： Init (平均72.2%), Read-Only (23%), and Read/Write (4.7%). => Init + Read-Only的数据存储到CXL-memory + be shared 可以避免重复存储
+    <img src="./pictures/CXLfork-Figure1.jpg" width=400>
+
+    - Challenges:
+        - how to checkpoint the process state to CXL memory without resorting to serialization
+        - how to efficiently share the checkpointed state between concurrent cloned process in the cluster
+    - Solutions:
+        - CXLfork 使用memory copies checkpoints process data and most of the OS-maintained process states(eg. page table)
+        - 对于挑战2：
+            - 默认情况下，CXLfork并不load这些process state到本地内存，而是让cloned process直接读CXL中的checkpoined process state
+            - 对于state update，每个cloned process使用Copy-on-Write来处理修改
+            - 问题：访问CXL memory的Lat比访问本地内存慢
+
+- 实现
+    - CXLfork checkpoint: distinguishes private and global process states
+        - private
+            - process 唯一拥有的所有数据和元数据，可以将其与OS的其余部分解耦：进程的任务结构(1)、内存描述符(2)（如虚拟内存区域树和页表）、CPU寄存器内容(3)以及进程私有内存和私有文件映射(libs)的物理页面(4)等
+            - 使用native momory copies(5)将这些数据结构和进程数据页面直接复制到CXL内存中 (checkpoint 期间)
+            - memory copy之后，page table中的PTE会更新(6)，以映射到CXL物理地址空间中存储checkpoint数据的新地址，并标记为read-only
+            - 内部pointer也会改变(7)，指向CXL设备上对应的偏移量；从而允许其他cloned process使用它们
+        - global
+            - 同一个node上由多个process共享的OS-managed states: open files, sockets, namespaces
+            - global states包含指向全局OS数据结构的指针；they are neither standalone nor portable.
+            - checkpoint期间，CXLfork将必要的信息serialize到CXL memory上(8)，以便在remote node上重新实例化global states
+            - restore期间，CXLfork deserialize这些信息，并redoes operations来恢复global os-managed states
+            - 例如：CXLfork会序列化打开文件或内存映射文件的路径和权限等信息。在恢复时，使用这些检查点数据结构中的路径和权限重新打开文件描述符。
+
+    <img src="./pictures/CXLfork-Figure4.jpg" width=800>
+
+    - CXLfork Restore
+        - 1. 在目标node上创建新process; 
+        - 2. 使用checkpoint中的metadata重建process的virtual memory mapping; 
+        - 3. 将checkpoint中的物理内存映射到新进程的地址空间(只读，避免copy + Copy-on-Write); 
+        - 4. deserialize + 恢复全局状态
+        - 注意：CoW带来的copy开销：CXLfork prefetch checkpoint中被标记为dirty的页到local memory <= Observation: over 95% of the pages that were written by the parent are also written by its children
+
+    - CXL Tiering
+        - 访问CXL memory速度比访问local memory慢；tradeoff between 数据共享 和 cloned process性能
+        - Migrate-on-Write (default): CoW
+        - Migrate-on-Access
+        - Hybrid Tiering: relies on the A bits in the checkpointed page. (select hot page)
+            - a CXL page with a clear 𝐴 bit is assumed not to be heavily-accessed and, therefore, on access, is not fetched to local memory
+
+### RainbowCake: Mitigating Cold-starts in Serverless with Layer-wise Container Caching and Sharing
+
+### TrEnv: Transparently Share Serverless Execution Environments Across Different Functions and Nodes
 
 ```shell
 Institution: Tsinghua
 Confertence: SOSP'24
+Author: Mingxing Zhang
 ```
 
 - blog: https://zhuanlan.zhihu.com/p/5224128384
@@ -96,6 +168,10 @@ Conference: FAST'25 BestPaper
 - 调度算法：MOONCAKE 采用缓存感知调度算法，平衡预填充和解码节点的负载，优化 KVCache 的重用，减少请求的等待时间。
 
 - blog: https://www.zhihu.com/question/6101603990/answer/117591041642 (提到了多篇论文，值得一读)
+
+### rFaaS
+- microsoft，rdma as a Faas，核心是完全用rdma 换掉一般faas 常用的rpc
+
 
 ## Ideas
 - Serverless + DSM 可以用来解决哪些问题

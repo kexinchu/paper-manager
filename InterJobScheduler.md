@@ -130,7 +130,7 @@
         - checkpoint per iteration (GPU压缩算法 NVcompression，GPU state)
         - compression
         - 异步传输：带宽使用
-        - checkpoint 分片 + 从分片checkpoint恢复
+        <!-- - checkpoint 分片 + 从分片checkpoint恢复 -->
         - multi-tier 存储
         - 传输 & compression 协同 (overlap & pipeline)
         - 传输优化算法：带宽，压缩computation cost，checkpoint size
@@ -146,13 +146,17 @@
         - warmup 与 CCL reinstantiation 并行执行
         - 中间数据的复用
         - data parallelism 场景下, 将请求发送给其他节点
-        - model parallelism 场景下，怎么讲上游/下游的device用起来？
+        - model parallelism 场景下，怎么将上游/下游的device用起来？
 
     - 分阶段recovery：failure detection - Scheduling(资源分配) - Job launching - Checkpoint loading - CCL reinstantiation - lazy initialization
-- fail-detection/monitor
-    - 问题：依赖于NCCL 超时时间来判断node loss，有延迟；如何实时的detect node fail
+    - NCCL CCL reinstantiation 会导致其他Device上的任务也受影响 (node-2-node的通信)
+        - 所有通过NVLINK互联的device 均建立起 1-1 连接，所以每个device的移除和加入会影响group内的所有其他device
+
+- fail-detection/monitor & predictor
+    - 问题：现有的依赖于NCCL 超时时间来判断node loss，有延迟；如何实时的detect node fail
     - 通过heartbeat / moniter来监听GPU
     - 故障分级：有些故障是否可以原地重启，比如GPU thread killed (验证)
+    - 故障预测： 
 
 
 - ML任务的checkpoint
