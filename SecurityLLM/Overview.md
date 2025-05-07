@@ -64,6 +64,10 @@ Conference: NDSS'25
 - 补充知识: KV cache sharing may lead to new side channel attack vectors
     - 侧信道攻击: 本文中指观测模型的响应时间差异,来判断是否命中KV cache reuse. (无需访问模型参数,仅通过对比命中／未命中缓存的响应时延,即可以百级查询开销完成对敏感 Prompt 的逐 token 重建或识别)
 - extracts one token from another user’s prompt at a time, progressively reconstructing the entire prompt by repeating the token extraction procedure.
+- 针对的攻击模型：攻击者掌握了用户提示模板的额外信息，并尝试重建用户的准确输入
+    - cloze-style prompt: 完形填空(不完整的句子或段落), 缺少单词或者短语
+    - prefix-style prompt: 
+- 通过prompt engineering + local LLM来生成candidate
 
 ### InputSnatch: Stealing Input in LLM Services via Timing Side-Channel Attacks
 ```shell
@@ -77,12 +81,74 @@ Conference: ArXiv Nov 2024
     - 2. 可观测的latency受到网络延迟/memory scheduling lat的干扰
     - 3. Real-world constraints
 
-### Defence
-- 限制KV cache reuse 粒度; 当前attacker 每次只能确定一个token
-- 引入 latency 噪声,使attacker难以区分 cache hit / miss
-- 缓存隔离
-- 依赖相同的tokenizer
+### The Early Bird Catches the Leak: Unveiling Timing Side Channels in LLM Serving Systems
+```shell
+Institution: USTC & Indiana University Bloomington
+Conference: Feb 21 2025
+Link: https://arxiv.org/pdf/2409.20002
+```
+- 利用时序侧信道信息来detect privacy信息
+    - memory sharing, cache contention and eviction and task scheduling among different users and applications can interfere with user requests, creating notice able timing side channels.
+- 两种类型
+    - KV cache泄露 (KV cache sharing of common prefix)
+    - semantic cache泄露 (语义相同的response cache)
+- 侧信道攻击 (在prompt空间搜索触发cache hit的tokens) 的挑战：
+    - 命中单个缓存块所需的时间通常很小，并且可能与 GPU 系统噪声以及电压和功率波动混合，因此难以检测和利用
+    - 键值缓存仅在提示共享公共前缀时才有效，这限制了攻击机会
+    - 提示空间的庞大使得系统地测试每个潜在提示以找到已缓存的提示变得不可行
+    - 攻击者自己的请求可能会在处理过程中被缓存，从而引入额外的噪声
+- 方法
+    - 在运行时动态调整时间阈值，提高在线检测准确率 (借助分类模型)
+    - 增量搜索算法，减少搜索空间
+    - 批量清除不相关请求机制来减少攻击者自身请求的干扰
+        - 两次攻击之间插入无关请求
+- 攻击分类
+    - PSA prompt窃取攻击 (攻击系统prompt, 获取业务逻辑, 私有数据)
+    - PNA 窥视peer攻击 (攻击用户输入中包含的私有信息)
 
+### Cache Partitioning for Mitigating Timing SideChannel Attacks in LLM Serving Systems
+```shell
+Conference: ICFTIC'25
+Institution: USTC
+```
+- 通过 partitions the KV cache into different prefix trees by user identities 来避免侧信道攻击
+    - user-level isolation: a unique identifier (token) for each user
+        - sha256 hash
+    - client侧保存 user-identifier, 并且请求时带上
+    - 只请求对应 user-identifier 的prefix tree KV cache
+<img src="./pictures/CachePartitioning-Figure2.jpg" width=600>
+
+- 缺点：
+    - 对于cross user sharing的影响
+        - single-user TTFT increase from 4.64% - 9.10%
+        - multi-user TTFT increase from 6.74% - 17.84%
+        - 从对比看, 模型越大, 造成的TTFT delay越大
+    - user-identifier也可能会被攻击
+    - 每个用户单独prefix tree在batch检索可用的KV cache时需要逐一匹配
+
+### 侧信道攻击的Defence思路
+- 攻击方法：
+    - 侧信道: KV cache hit => TTFT 小于 KV cache mis下的 TTFT
+    - token-by-token 攻击 (detect?)
+- 对KV cache分类
+    - 包含隐私数据: session 内部share
+    - 不包含隐私数据： cross-session sharing
+- 挑战：
+    - 隐私数据的detection
+        - 分类学习方法: SVM/RNN
+    - KV cache prefix tree的管理
+        ```
+        if (detect_privacy_info(prompt)) {
+            return hash(previous_hash + prompt + session_id)
+        } else {
+            return hash(previous_hash + prompt)
+        }
+        ```
+    - batch request的时候如何高效索引
+    - 侧信道攻击检测
+        - 滑动时间窗口 + cache_hit
+
+## On-Device Attack
 ### A First Look At Efficient And Secure On-Device LLM Inference Against KV Leakage
 ```shell
 A First Look At Efficient And Secure On-Device LLM Inference Against KV Leakage
@@ -90,7 +156,7 @@ Conference: MobiArch ’24
 Institution: Central South University & Tsinghua
 Link: https://dl.acm.org/doi/pdf/10.1145/3691555.3696827?casa_token=gZoLUCD7mncAAAAA:now44Y6q0oV7fZ6vEf_3NrTaNnF1G5EkehfBUgtG_kVhWbG8wtdgQO2oZ9NzTHV9uWhsDk4OZuzu
 ```
-- 虽然on-device LLM推理的准确性和效率已经得到了验证,但面临着安全性的严峻考验 => 移动设备的计算核心容易受到各种攻击,尤其是信息泄露。
+- 虽然 on-device LLM推理的准确性和效率已经得到了验证,但面临着安全性的严峻考验 => 移动设备的计算核心容易受到各种攻击,尤其是信息泄露。
 - attacker可以利用攻击捕获的KV cache来重建整个对话,获取隐私信息
     - eg. AMD GPU上的 leftoverlocal
 - 现有方法: 
@@ -102,20 +168,6 @@ Link: https://dl.acm.org/doi/pdf/10.1145/3691555.3696827?casa_token=gZoLUCD7mncA
     - 逆置换在TEE中发生, 对外不可见 + size有限
     <img src="./pictures/KV-Shield_equations.jpg" width=300>
 
-## Jailbreak Attacks
-### ROBUSTKV: DEFENDING LARGE LANGUAGE MODELS AGAINST JAILBREAK ATTACKS VIA KV EVICTION
-```shell
-ROBUSTKV: DEFENDING LARGE LANGUAGE MODELS AGAINST JAILBREAK ATTACKS VIA KV EVICTION
-link: https://arxiv.org/pdf/2410.19937
-```
-- jailbreak攻击: 设计jailbreak prompt,绕过开发人员设置的安全限制,将harmful query隐藏在看似无害的提示中,诱使其生成恶意响应/泄露隐私
-- 核心思想: 选择性地从KV cache中移除有害查询的关键标记符,从而破坏LLM对隐藏有害请求的处理能力
-    - 分析KV缓存中的注意力模式 : 监控KV缓存中的注意力得分,以确定输入中哪些部分受到模型的高度关注,哪些部分的注意力得分较低。
-    - 识别潜在有害内容 : 查找相对其周围上下文注意力得分异常低的文本片段,这些片段可能是隐藏的有害查询。
-    - 策略性地驱逐低重要性信息 : 从缓存中移除低重要性的信息,从而干扰模型对隐藏恶意请求的处理,同时保留正常内容。
-- 逃避两难困境:  攻击者为了使越狱提示生效,需要降低有害查询在提示中的重要性,这反而使RobustKV更有效;而为了逃避RobustKV的检测,攻击者若增强有害查询的重要性,又会使越狱提示更难绕过LLM的初始安全检查
-
-## LLM & Application Isolation
 ### ISOLATEGPT - NDSS'25
 ```shell
 ISOLATEGPT: An Execution Isolation Architecture for LLM-Based Agentic Systems
@@ -132,8 +184,38 @@ Institution: Washington University in St. Louis
     - 通信: Inter-Spoke Communication ISC
         - 核心式采用hub作为可信中介,来控制不信任spoke之间的信息流,并在信息流经过hub式进行筛选和审查,以识别和终止可能的恶意交流
 
+## Jailbreak Attacks
+### ROBUSTKV: DEFENDING LARGE LANGUAGE MODELS AGAINST JAILBREAK ATTACKS VIA KV EVICTION
+```shell
+ROBUSTKV: DEFENDING LARGE LANGUAGE MODELS AGAINST JAILBREAK ATTACKS VIA KV EVICTION
+link: https://arxiv.org/pdf/2410.19937
+```
+- jailbreak攻击: 设计jailbreak prompt,绕过开发人员设置的安全限制,将harmful query隐藏在看似无害的提示中,诱使其生成恶意响应/泄露隐私
+- 核心思想: 选择性地从KV cache中移除有害查询的关键标记符,从而破坏LLM对隐藏有害请求的处理能力
+    - 分析KV缓存中的注意力模式 : 监控KV缓存中的注意力得分,以确定输入中哪些部分受到模型的高度关注,哪些部分的注意力得分较低。
+    - 识别潜在有害内容 : 查找相对其周围上下文注意力得分异常低的文本片段,这些片段可能是隐藏的有害查询。
+    - 策略性地驱逐低重要性信息 : 从缓存中移除低重要性的信息,从而干扰模型对隐藏恶意请求的处理,同时保留正常内容。
+- 逃避两难困境:  攻击者为了使越狱提示生效,需要降低有害查询在提示中的重要性,这反而使RobustKV更有效;而为了逃避RobustKV的检测,攻击者若增强有害查询的重要性,又会使越狱提示更难绕过LLM的初始安全检查
+
 ### ASGARD - NDSS'25
 ```shell
 ASGARD: Protecting On-Device Deep Neural Networks with Virtualization-Based Trusted Execution Environments
 Link: https://www.ndss-symposium.org/wp-content/uploads/2025-449-paper.pdf
 ```
+
+### PipeLLM: Fast and Confidential Large Language Model Services with Speculative Pipelined Encryption
+```shell
+Conference: ASPLOS'25
+Institution: IPADS SJTU
+```
+- 通过推测式流水线加密技术, 在保证数据保密性的前提下, 有效降低了GPU保密计算对LLM服务性能的影响
+
+<img src="./pictures/PipeLLM-Pipelined-Encryption.jpg" width=300>
+
+### Confidential Computing on nVIDIA H100 GPU: A Performance Benchmark Study
+```shell
+Conference: ArXiv Sep 16
+Institution: Fufan
+```
+- TEE on GPU (2023年, H100是第一款支持TEE的GPU)
+- 随着input tokens增加，TEE 模式的效率显著提升。当 GPU 内部计算时间占据整体处理时间的主导地位时，TEE 模式引入的 I/O 开销会逐渐减小，从而使效率接近 99%

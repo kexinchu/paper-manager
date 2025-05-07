@@ -336,16 +336,25 @@ Conference: FAST'25 BestPaper
         - 2, 在数据写频繁的场景下(), home node 会成为瓶颈 (对数据的写都会经过home node)  -- 数据访问pattern发生变化时
         - 3, home node释放，或者其他node的释放都会导致重新hash (ring hash); node cache的释放也需要通知home node
     - 思路：
-        - home node动态分配；根据数据的访问模式和频率，动态地将某些数据的home node分配到负载较轻的node上。 -- 负载均衡
+        - 相对写频繁场景有哪些？
+            - [Huawei FaaS Trace Data](https://github.com/sir-lab/data-release/tree/main)
+                - Observation1: ，不同地区在冷启动时间、CPU 使用率和内存使用率方面存在显著差异，拥堵程度较低的地区可能提供更便宜、更快速的工作负载运行选项 [论文](https://dl.acm.org/doi/pdf/10.1145/3689031.3696073)。
+        - home node动态分配；根据数据的访问模式和频率，动态地将某些数据的home node分配到负载较轻的node上。
         - 多 home node 协作，分摊负载
         - 纯写频繁是否不借助缓存更好，考虑一些更复杂的workload的场景
-            - Sundial: Harmonizing Concurrency Control and Caching in a Distributed OLTP Database Management System
-            - Falcon: A Timestamp-based Protocol to Maximize the Cache Efficiency in the Distributed Shared Memory
-            - 这两篇论文
-            - workflow: 不同的场景下写操作的比例
+            - 有哪些workflow:、
+            - Trace from [Azure](https://github.com/Azure/AzurePublicDataset):
+                - 30% of Azure applications的invocation访问相同的data.
+                - 99.7% of the data objects 存在 global storage中
+                - 77.3% of access are reads, 大部分access是bursty的
+                    - 对同一data objective的write access也是burst的
+                    - 占write trace的 ~1.5%
+
     - 挑战：
         - 1. 多个node触发写操作时，一致性怎么维护 (一致性要求高；不适合MVCC)
-            - 可选方案：1，乐观并发控制OCC —— 提交到global storage时冲突如何解决？
+            - 分布式乐观并发控制
+            - [Sundial](https://dl.acm.org/doi/pdf/10.14778/3231751.3231763?casa_token=BUjVhvhzS9IAAAAA:f4zfU12qK1X3CgpyCQ0IFUJKn71cuY08sXrHD_7NFvSx9rk4hm-6WTDmIiOqOhiFizwvy9_dxFon)
+            - [Falcon](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9820697&casa_token=9gE0NZsWE60AAAAA:3FZRiZ44JJsB49DXN6Opwis-8woxhJ5lgslnnoNSP2HVLrB5jcw8A7PwBTXVsrR57mrLITwQ&tag=1)
         - 2. 写入更新之后怎么同步
             - 多目录节点协作更新；在local cache中标记数据条目为无效
             - 主动失效
