@@ -1,6 +1,5 @@
 ## TeRM: Extending RDMA-Attached Memory with SSD
-
-```
+```shell
 Conference: FAST'24
 Institution: Tsinghua University & Huawei (Youyou Lu)
 ```
