@@ -1,5 +1,50 @@
 # LLM & Security
 
+## SafeKV
+#### Design
+- 1. AdaptiveGuard：自适应隐私检测与分块策略
+    - 目标：在KV-cache存储时，实时检测 和 提取包含隐私数据的块
+    - 机制：
+        - 隐私数据包含很多pattern，实现简单的按pattern的提取
+        - 支持自适应拓展，用户可以增加关注的隐私信息和pattern
+        - 隐私块检测：(existing work分析)
+            - 正则化模式检测慢
+            - 分层：light-weight model检测是否包含隐私信息
+            - 仅在将 KV-Cache 存储写入Radix-Tree时需要处理(不频繁)
+        - 像User Name, Address这种没有明显pattern的case？
+            - 基于语义的 privacy 检查
+            - transformer-based model来判断 (light-weight)
+            - 潜在的privacy info (语义上的: 比如地址信息分散在一段话中，从语义上整段话都是privacy的)
+
+- 2. Cache management
+    - 目标：动态管理私有与共享缓存的内存分区，适应不同隐私情况。
+    - 机制：
+        - 根据每个 块 的隐私检测结果，动态将其分配到用户私有缓存或全局共享缓存；
+        - 对于以private node为根节点的子树，"search时合并子树，减少搜索深度"
+            - 回收时，考虑到单个用户的request可能"重启"，evict时根据memory capacity从privacy尾部删除 (不一次性删除全部子树)
+        - evict policy统一私有和共享缓存的管理
+            - LRU 会导致私有 KV-cache 优先被删除 (frequency低)
+            - privacy-aware 感知的lru policy；(epoch宽度)
+        - 实时监控系统中隐私请求比例，调整两者缓存大小比例；
+            - 性能与privacy的 trade-off
+            - 自适应的指标
+
+```shell
+        ...
+    |private-1|
+    # |node-1 (pri)|
+    # |node-2|
+    # |node-3|
+    |node-4|
+```
+
+- 3. Cache Evictor: 异常感知驱逐机制
+    - 目标：防止缓存探测攻击并清除潜在误判内容。
+    - 机制：
+        - 对缓存条目的访问频率（当前窗口 vs 之前窗口）进行实时监控；
+        - 若命中次数异常突增（e.g., hit_cur ≥ 2 × hit_prev），判定为探测行为；
+        - 仅驱逐该条目的 KV 数据，保留其结构元信息以保持上下文完整。
+
 ## 大家在研究什么
 - 参考论文
 ```shell

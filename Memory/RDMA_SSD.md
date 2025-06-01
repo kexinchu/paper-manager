@@ -255,6 +255,7 @@ Institution: Tsinghua University & Huawei (Youyou Lu)
 - 有哪些新的挑战？
     - 延迟问题：
         - local DRAM in Compute Node: ns级别延迟 (或者只考虑compute，不考虑local DRAM？)
+            - local DRAM 的影响，加一组实验 不同size的local cache
         - RDMA-DRAM Pool access：~1-2 us； 带宽 ~12.5-25GB/s
         - NVMe-oF Storage Pool: ~50-200 us(TCP) / ~20-50 us(RDMA); 大容量
     - 带宽竞争：
@@ -270,6 +271,16 @@ Institution: Tsinghua University & Huawei (Youyou Lu)
             - 更高的延迟
     - NVMe 寿命limitation + granularity mismatch (这个需要再想想)
         - 减少NVMe上的写频繁
+    - 垃圾回收：compute节点处理 vs memory node处理？ memory node上的CPU计算能力有限，需要使用weak的方法来处理。但是可能处理不及。
+        - 一致性(RDMA remote修改数据，RNiC处理，可能未同步CPU - 可能当前local cache为同步)，前后台同时清理时，避免冲突
+            - 前台，占用客户端资源
+            - 后台，资源有限，针对指针的更新，走RNIC，能保证一致性？
+            - 强一致性(metadata) vs. 弱一致性(data)
+                - unmap - copy - remap
+                - 远端CAS和local CAS可能同步执行
+                - 大块数据的回收通过local CPU处理，针对指针之类的可以通过RNIC来操作
+            - 回收时考虑：page回收时部分数据仍然valid，需要copy到另一个page
+        - 当前台发现 OOM，主动触发即时的资源回收
 - 技术方案？
     - Latency 优化
         - hot/cold数据分布: hot数据在RDMA-DRAM上，cold数据在NVMe SSD上
