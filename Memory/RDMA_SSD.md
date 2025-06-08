@@ -2,6 +2,10 @@
 ## 基础调研
 - RDMA vs NVMe-oF
     - RDMA (InfiniBand/RoCE) 
+        - RDMA通过 RNIC 直接访问远程节点的内存，不经由远程 CPU 参与。其核心优势是低延迟、高带宽、低 CPU 开销。
+        - 特点：
+            - Zero-copy：数据直接在 RNIC 与内存间传输，不经过远程 CPU 缓存/处理。
+            - Bypass CPU/OS：一旦注册内存区域（Memory Region），RNIC 可直接访问。
     - NVMe-oF (NVMe/RDMA, NVMe/TCP)
         - NVMe/RDMA协议，基于RDMA网卡，无需CPU和内核干预 (~20-50 us)
             - 使用RNIC卡，会与RDMA-DRAM竞争带宽等
@@ -246,56 +250,76 @@ Institution: Tsinghua University & Huawei (Youyou Lu)
 
 ## 故事线
 - 解决什么问题？
-    - DRAM 容量收到硬件插槽限制(容量有限) + 大容量的DRAM往往价格更贵
-    - Existing works在DSM场景下使用SSD扩展DRAM，主要集中在优化local access，没有跨节点共享
-    - cross node负载均衡：当node A上 SSD I/O饱和时，可以动态调整一些node A上的hot数据读写请求到空闲node
+    - DRAM 容量受到硬件插槽限制(容量有限) + 大容量的DRAM往往价格更贵
+    - Existing works在DSM场景下使用SSD扩展DRAM，主要集中在优化local access，没有跨节点共享 => cross node负载失衡：当node A上 SSD I/O饱和时，node B上的带宽may空闲
 - Motivation是什么？
-    - 借助NVMe-oF技术，将cross node的NVMe资源share成第三级 storage pool，支持cross node的share和访问 (按需动态分配)
-    - Compute -> RDMA-DRAM Pool -> NVMe-oF Storage pool
+    - 借助NVMe-oF技术，将NVMe资源share成第三级 storage pool，支持独立的扩展 + global sharing
+    - Key Point:
+        - 三级架构：Compute -> RDMA-DRAM Pool -> NVMe-oF Storage pool
+        - 统一的高速访问：利用InfiniBand RDMA技术来访问远程DRAM和远程NVMe SSD，两种介质的读写都通过RDMA一跳直达。这避免了内核干预和多余拷贝，提供一致的低延迟数据通道
+        - 负载均衡和跨node资源共享
 - 有哪些新的挑战？
-    - 延迟问题：
-        - local DRAM in Compute Node: ns级别延迟 (或者只考虑compute，不考虑local DRAM？)
-            - local DRAM 的影响，加一组实验 不同size的local cache
+    - 延迟特性与Access路径优化：
+        - local DRAM in Compute Node: ns级别延迟 (暂时只考虑compute，不考虑local DRAM？)
+            - local DRAM 的影响，最后可以加一组实验 不同size的local DRAM对性能的影响
         - RDMA-DRAM Pool access：~1-2 us； 带宽 ~12.5-25GB/s
-        - NVMe-oF Storage Pool: ~50-200 us(TCP) / ~20-50 us(RDMA); 大容量
-    - 带宽竞争：
-        - NVMe-oF over TCP 速度慢(~50-200 us(TCP)), while NVMe-oF over RDMA速度快(~20-50 us(RDMA))
-        - 使用 NVMe-oF over RDMA
-            - RDMA-DRAM 和 NVMe-oF over RDMA 走同一条 RNIC 和同一块物理网络（InfiniBand 或 RoCE）；竞争链路带宽
-            - RNIC 只有有限数量的QP和WQE(work queue engine); 两者同时高并发会导致排队和latency thrashing
-            - PCIe链路带宽竞争：RDMA-DRAM: PCIe-DRAM-PCIe; NVME-oF: PCIe-SSD-PCIe (PCIe上的流量综合不超过PCIe的带宽: eg.PCIe 4.0*4 ~= 7.88GB/s)
-        - 使用NVMe-oF over TCP
-            - 不会抢占RDMA-specific资源，影响RDMA-DRAM的性能 (PCIe)
-            - 增加CPU开销：经过内核网络栈，触发NIC中断，涉及多次：用户态-内核态切换
-            - TCP协议处理：校验，拥塞控制，滑动窗口管理等
-            - 更高的延迟
-    - NVMe 寿命limitation + granularity mismatch (这个需要再想想)
-        - 减少NVMe上的写频繁
-    - 垃圾回收：compute节点处理 vs memory node处理？ memory node上的CPU计算能力有限，需要使用weak的方法来处理。但是可能处理不及。
-        - 一致性(RDMA remote修改数据，RNiC处理，可能未同步CPU - 可能当前local cache为同步)，前后台同时清理时，避免冲突
-            - 前台，占用客户端资源
-            - 后台，资源有限，针对指针的更新，走RNIC，能保证一致性？
-            - 强一致性(metadata) vs. 弱一致性(data)
-                - unmap - copy - remap
-                - 远端CAS和local CAS可能同步执行
-                - 大块数据的回收通过local CPU处理，针对指针之类的可以通过RNIC来操作
-            - 回收时考虑：page回收时部分数据仍然valid，需要copy到另一个page
-        - 当前台发现 OOM，主动触发即时的资源回收
+        - NVMe-oF Storage Pool: ~20-50 us(RDMA); 大容量
+        - 悬殊的latency差距会对应用性能和tail latency产生限制影响
+
+    - 垃圾回收策略及其一致性保证：
+        - 哪些数据是需要回收的？
+            - 当前buffer ring 异地写，原本的那部分数据怎么处理？
+        - 当前写哪些部分需要通过CAS额外处理，保持一致性？
+        
+        - NVMe SSD存储空间的回收
+            - page回收时部分数据仍然valid，需要copy到另一个page => 写放大和抖动
+            - 多节点竞争写入/删除
+        - Remote RDMA-DRAM 的回收
+        - 回收处理单元：
+            - compute节点处理(前台)：占用客户端资源，但是当client写数据时 meet 资源不足时，需要触发前台回收
+            - memory node处理(后台)：异步处理，但是memory node上的CPU计算能力有限
+        - 一致性问题：RDMA remote修改数据，RNIC处理，可能未同步给CPU；后台使用CPU直接修改数据，NIC未感知 => 当使用 `前后端协同回收` 时，需要避免一致性冲突
+            - RDMA通过RNIC直接访问remote node的memory，RNIC通过PCIe直接将数据写入内存区域；不会触发remote CPU上的缓存一致性协议(比如Intel的MESI协议)；此时虽然Memory上数据被修改了，但是CPU并不知道
+            - CPU后台修改：CPU直接访问并修改这块内存
+            - 不一致：
+                - 写后读乱序：CPU 读不到 RNIC 刚写入的内容，或 vice versa。
+                - 写覆盖丢失：CPU 和 RNIC 分别修改同一块数据，写入顺序不一致。
+                - 内存污染：部分字节来自 CPU 写入，部分来自 RDMA 写入，形成混合数据。
+
+    - 带宽竞争&负载均衡：
+        - 内存池中：一方面，远程内存池需要防止单个内存服务器过度热迁移或承载过多页而造成热点；另一方面，全局NVMe池的访问流量也应避免集中到某一两台SSD节点上。
+            - 现有工作Infiniswap采用了分布式的内存分配策略（例如将交换空间划分为若干固定大小的slab分散映射到多台远程服务器）来减轻单点压力；但仍可能出现某些节点被过多请求集中（例如多个客户端竞相使用同一远程节点内存）的情况。
+        - 需要动态的跨节点调度和迁移机制：例如根据负载将hot page在remote memory service之间再平衡，或者将热点数据从繁忙节点迁移到空闲节点
+
 - 技术方案？
     - Latency 优化
-        - hot/cold数据分布: hot数据在RDMA-DRAM上，cold数据在NVMe SSD上
-        - prefetch：
+        - hot/cold数据分布(+ hot/cold page识别): hot数据在RDMA-DRAM上，cold数据在NVMe pool上
+        - prefetch + cache机制：
             - prefetch algorithm：首先看一下已有的prefech方法是否试用：Next-N-line, Feedback-directed, Best-offset, Leap 等.
         - asynchronize transfer：
             - evict policy：已有的：LRU, random, FIFO, CFLRU, 基于Epoch近似的LRU,
-    - 负载均衡(缓解带宽竞争)
-        - 对负载重的node 的数据读/写；迁移到负载轻的node上
-        - 写SSD
-        - 写DRAM
-        - 读DRAM/SSD
-        - (待定) NVMe-oF RDMA 和 NVMe-oF TCP的动态调整？
+        - 对于无法避免的Client 直接访问 NVMe，考虑使用批量化手段，合并小页请求为大块I/O
+        - DRAM -> NVMe 打散(取模)
+        - 异地写之后，原location位置的key-value 作为垃圾数据，被回收
     
-    - 减少SSD写频率：仅当从DRAM中evict时，才将更新写入SSD
+    - 垃圾回收及其一致性 —— 分布式GC框架
+        - 针对 NVMe SSD空间，由于其"not frequent"特点，使用后端内存节点-异步更新的方案；同时batch data/metadata的更新 ops. (借助版本号避免conflicts)
+        - 针对 remote DRAM空间; 采用client主动GC + 后台GC相结合的方案：前者利用计算节点富余算力，通过RDMA操作远端数据进行整理；后者利用本地数据访问快的优势两种方案，权衡网络开销与远端CPU开销
+        - 为确保一致性：
+            - RNIC & CPU之间的一致性：数据和标志位(指针)分开处理
+                - 利用CPU访问本地数据快的优势，处理大块I/O
+                - 利用RNIC 网络ops来更新标志位/指针，实现强一致性
+            - 使用RDMA原子操作、顺序写入协议等手段，确保远端RNIC写入与CPU访问顺序可控、状态一致。
+
+    - 带宽竞争 & 负载均衡
+        - 基于负载监控的动态页调度与迁移：在同一tier上，按照负载将hot page迁移到空闲的memory node上
+        - 分配时，低成本均衡(随机选择2个node)；选择负载较轻的node分配资源
+        - 动态迁移：持续监控各内存和存储节点的带宽利用率、队列延迟等指标，一旦检测到某节点出现单点饱和（如网络带宽跑满或SSD队列积压），则触发跨节点的页面再分配/迁移。
+            - 将该饱和node上一部分最近sub hot的页迁移到空闲节点，
+            - 对hot page实施多副本策略
 
 - 需要的motivation test？
+    - ScaleStore 不同node的负载
 - benchmark 和 测试？
+    - 对比的baseline: 纯内存的
+    - 按照百分比评估 NVMe 扩展的效果

@@ -1,33 +1,68 @@
 # LLM & Security
 
 ## SafeKV
-#### Design
-- 1. AdaptiveGuard：自适应隐私检测与分块策略
-    - 目标：在KV-cache存储时，实时检测 和 提取包含隐私数据的块
-    - 机制：
-        - 隐私数据包含很多pattern，实现简单的按pattern的提取
-        - 支持自适应拓展，用户可以增加关注的隐私信息和pattern
-        - 隐私块检测：(existing work分析)
-            - 正则化模式检测慢
-            - 分层：light-weight model检测是否包含隐私信息
-            - 仅在将 KV-Cache 存储写入Radix-Tree时需要处理(不频繁)
-        - 像User Name, Address这种没有明显pattern的case？
-            - 基于语义的 privacy 检查
-            - transformer-based model来判断 (light-weight)
-            - 潜在的privacy info (语义上的: 比如地址信息分散在一段话中，从语义上整段话都是privacy的)
+#### 解决的问题：
+- 在 LLM 多用户环境中，共享 KV-Cache 可以大幅提升推理性能
+- Risk: 当多用户共享KV缓存时，如果一位攻击者的请求与另一用户的请求有相同的前缀，系统可能直接重用之前计算的KV缓存，从而加速响应。然而，这种优化会产生时间侧信道：攻击者可以通过测量首次令牌延迟（TTFT）或响应时间的细微差异来推断缓存是否命中，从而猜测其他用户提示中的内容.
+- 一些隐私数据follow固定的pattern；大大减少了Attackers获取这部分数据的难易程度
 
-- 2. Cache management
-    - 目标：动态管理私有与共享缓存的内存分区，适应不同隐私情况。
-    - 机制：
-        - 根据每个 块 的隐私检测结果，动态将其分配到用户私有缓存或全局共享缓存；
-        - 对于以private node为根节点的子树，"search时合并子树，减少搜索深度"
-            - 回收时，考虑到单个用户的request可能"重启"，evict时根据memory capacity从privacy尾部删除 (不一次性删除全部子树)
-        - evict policy统一私有和共享缓存的管理
-            - LRU 会导致私有 KV-cache 优先被删除 (frequency低)
-            - privacy-aware 感知的lru policy；(epoch宽度)
-        - 实时监控系统中隐私请求比例，调整两者缓存大小比例；
-            - 性能与privacy的 trade-off
-            - 自适应的指标
+#### Motivation
+- Existing work: USTC的一篇工作通过使用KV-Cache Partitioning来保护隐私：为每个用户存储独立的prefix-tree，避免cross user的KV-Cache Sharing  =>  影响性能，因为：1，会存储冗余KV-Cache，浪费HBM/DRAM/SSD存储资源；2，在一些场景下，通过cross user sharing才能取得收益
+- 选择性共享来平衡隐私和性能：将非敏感的缓存条目在用户之间共享，而将敏感内容对应的缓存隔离在私有范围
+
+#### Challenges
+- 如何实现快速，低成本的隐私block检测
+    - 除了存在固定pattern的隐私信息，还包括复杂/上下文关联的隐私信息
+    - light-weight + real-time
+    - 支持根据场景定制privacy 类型(例如：企业内部数据,特定领域术语等)；适应复杂也现实场景
+- 如何管理 private/public KV-Cache
+    - 避免数据的重复存储：优化 HBM/DRAM/SSD 资源占用
+    - 支持快速的 prefix-prompt Search；避免给LLM inference造成penalty
+        - 支持自适应node 合并，降低search深度
+    - 支持快速的 数据插入 (private/public insert) 和 自适应的数据删除
+        - 自适应删除：private 数据因为其使用频率较低，需要避免一次性删除一整个节点 => 避免用户激活requests时出现 long prefix prompt's KV-Cache Miss
+- 针对检测失败的兜底方法
+    - 针对KV-Cache Reuse的侧信道攻击依赖多次对 KV-Cache block的 "试探"；会导致单一"用户" 对某些KV-Cache block的命中大幅增加； -> 最简单的方法是通针对用户行为的单点检测来识别attacks
+    - 现实中，并不能假定单个攻击者，attackers可能会控制多个账号来协同攻击，以绕过单点检测。如：Attackers 通过多个账号分别低频率探查不同部分，使任何单账户行为看似正常，却在整体上实现了高频覆盖。
+
+#### Design
+- 0， 舍弃 SafeKV-固定分块 思路的原因
+    - 固定分块存在局限性：对复杂和跨chunk的private pattern可能无能为力(敏感信息的长度和位置各异， 可能恰好落在分块边界处，导致逃过detect)；
+    - 敏感性往往取决于上下文：某些信息片段在上下文中才具有敏感意义，但ChunkGuard逐块独立判别，可能无法识别这类组合敏感模式。例如“她去年得了流感”单看并非典型敏感信息，但如果上文提到某人身份，这句话可能属于健康隐私。固定块长也忽略了语义边界，可能将一句话拆开，丢失了完整语义，导致误判率上升。
+    - 缺乏深入的语义和上下文感知能力
+
+- 1. Adaptive-Detection：上下文感知的自适应隐私检测
+    - 目标：在KV-cache存储时，实现light-weight的实时检测(快速，低成本，可定制化)
+    - 思路：多级检测(Hybrid)
+        - 一级(规则/正则方法)：感知"显示敏感pattern"
+            - 维护一份可插拔的“敏感模式库”（如邮箱、身份证号、银行账号、内部文档、专有名词词典等） => 支持User按照业务场景自定义 + 扩充
+            - 对于文本进行扫描, 使用Trie匹配或者正则，快速截获敏感字段
+            - 对于邮箱/电话/SSN等pattern可以并入Trie匹配中, 降低扫描成本；对于无法合并(不定长)的pattern，使用滑动窗口+正则匹配
+            - 检测到privacy block，将当前KV-Cache block标记为 private
+        - 二级(light-weight transformer-based model)
+            - 使用一支蒸馏版Transformer（如TinyBERT、DistilBERT微调），为每个语义块打分（敏感概率：0~1）。
+            - (阈值根据实验进行调整)将"低敏(p<0.3)"块的KV-Cache Node标记为public，将"高敏(p>0.7)"块的KV-Cache Node标记为private
+            - 写作的时候需要提及：支持用户自定义微调，使用混合标签数据集(一部分公共敏感概念（PII、法律法规要求保护的数据），一部分客户自定义词典（企业内部项目代号、专利编号等）) 
+        - 三级(跨block/对话上下文综合校验)
+            - 针对二级检测中处于灰度区间(0.3 < p < 0.7)的block，并不立即标记public，而是引入 "cross block 关联检测"
+            - 增加本次请求的上下文，使用LLM评估是否包含隐私信息 (构造prompt)
+        - 仅在创建 KV-Cache 缓存node时使用，一次分类，多次使用，减少分类频率和开销
+        - 为避免分类过程影响当前的 KV-Cache Sharing; 使用异步pipeline的方式执行：
+            - 默认KV-Cache node创建之后，标记为private
+            - 异步触发 hybrid detection；使用batch方法合并多个请求，提高detection效率；
+            - 逐步需要可reuse/sharing的public block状态
+            - 当node确定private状态时，其子节点直接被标记为private
+
+- 2. Cache management(public/private)
+    - 目标：动态管理private/public缓存，避免冗余存储，同时实现快速的prefix-prompt search，插入/删除
+    - 思路：<!-- 三级异构存储结构(HBM-DRAM-SSD) -->
+        <!-- - KV-Cache 分层放置 (hot/cold)
+            - HBM(GPU显存)：存放当前GPU执行中的request 所依赖的KV-Cache
+            - DRAM: 缓存 热点public KV-Cache 和 最近活跃的private KV-Cache（可以分出DRAM 总容量的 X% 来存储private KV-Cache, 使用LRU来管理）。
+            - SSD：持久化 cold private KV-Cache 或 historical public KV-Cache，当DRAM空间紧张时将entry写入SSD，以便后续reuse时快速加载。 -->
+        - 统一管理private/public prefix tree.
+        - private node因为只被同一个user使用，不会出现"分叉"；为实现快速search，"逻辑上合并sub-tree"
+        - 回收时，考虑到单个用户的request重启 + private reuse周期长的情况，在eviction时并不一次性删除全部子树，而是从leaf node逐级删除 (渐进式eviction)
 
 ```shell
         ...
@@ -38,12 +73,20 @@
     |node-4|
 ```
 
-- 3. Cache Evictor: 异常感知驱逐机制
-    - 目标：防止缓存探测攻击并清除潜在误判内容。
-    - 机制：
-        - 对缓存条目的访问频率（当前窗口 vs 之前窗口）进行实时监控；
-        - 若命中次数异常突增（e.g., hit_cur ≥ 2 × hit_prev），判定为探测行为；
-        - 仅驱逐该条目的 KV 数据，保留其结构元信息以保持上下文完整。
+- 3. 针对检测失败的兜底与攻击识别: 
+    - 目标：基于模型的private评估可能存在漏网之鱼，需要从机制上兜底隐私保护；在检测到可疑Attacker时，即使止损，阻断privacy泄露的可能
+    - 难点：1，需要兼容多账号协同攻击的场景；2，基于频率的变化并不能有效反映攻击，因为request本身的访问pattern就是变化的
+    - 思路：基于时间窗口的Monitor + 分布熵判断
+        - 即使使用多账号协同攻击，也会造成单个账号的访问频率增加
+        - 对于每一个KV-Cache block，记录：hit_cur, u_cnt, hit_pre, u_pre
+        - 每个时间窗口计算：entropy = u_cnt/hit_cur, entropy低表示少数账号占多次访问，高entropy表示访问比较分散
+        - 通过直接判断 entropy 判断 少量找好直接攻击的情况； 通过hit_cur >> hit_pre + entropy_now > entropy_pre的方式来判断 多账号协同攻击
+        - 根据pre的情况来判断是否需要将当前block升级成private
+            - if u_pre 较大，说明当前block被多个user使用，认定为公共前缀，不做修改
+            - if u_pre 较小(=1)，说明当前block仅被单一user使用，认定可能包含隐私信息，降级为private
+
+
+
 
 ## 大家在研究什么
 - 参考论文

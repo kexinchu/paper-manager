@@ -81,23 +81,34 @@ ArXiv 11.2024
 ## MoE Inference in Distributed System
 - 解决什么问题？
     - 目的是优化distributed system中的MoE推理加速(提升GPU利用率)
-    - 问题：1，EP 下，数据传输开销高(allreduce - gate - allgather) 产生2次all-2-all 传输开销；2，MoE experts之间负载不均衡，且负载pattern随之间变化.
+    - 问题：1，EP 下，数据传输开销高(allreduce - gate - allgather) 产生2次all-2-all 传输开销；2，MoE experts之间负载不均衡，且负载pattern随之间变化. => 增加长尾延迟、降低整体吞吐
     - 现有的工作：
-        - MoETuner对experts静态分组，减少all-2-all的次数
-        - Speculative MoE 在分组的基础上，加上动态预测分组，提前加载experts
+        - GShard/Switch Transformer 模型在训练中采用Top-1 路由（每个token只选1个专家）来简化路由算法，减少通信和计算开销. 优点是实现了7倍以上的预训练速度提升；代价是在推理部署时加剧了专家负载的不均衡：由于每个token只能使用一个专家，热门专家更容易超载，而其他专家资源浪费。(路由失衡+资源利用不充分)
         - GShard/Switch Transformer 增加capacity上限，丢弃溢出tokens
-        - MoEShard 将experts切分成块，均匀分布在全部GPU上
+        - MoETuner对experts静态分组（离线解析地优化专家到GPU的映射来同时平衡计算负载和通信开销），减少all-2-all的频次：把经常“合作”的专家尽量放在同一设备或相邻设备。 => 缺点：静态优化，缺少应对动态负载变化的能力
+        - ExFlow 则利用跨层专家亲和性分析，将经常连续被同一批token访问的专家放到同一GPU，减少层间需要传输的token数
+        - Speculative MoE (s-MoE) 通过投机执行来减少专家并行中的通信瓶颈. 在Experts分组 (根据历史或先验预测，将经常一起被激活的专家预先分组部署在同一GPU上) 的基础上，加上动态预测分组 (预测token的被路由到哪个experts上，并按照预测结果重组token顺序并发送给对应设备)，提前加载experts.  => 最小化跨设备通信
+        - MoEShard 聚焦于Expert负载均衡，通过将experts切分成块(按行+列)，均匀分布在全部GPU上；确保工作负载在GPU之间均匀分布. 优点是降低了TTFT，缺点是在每层需要引入额外的全局规约通信来汇总分片计算结果，可能增加一定通信开销。
+        - FasterMoE 引入拥塞感知的动态路由策略：当检测到某些专家/GPU过载时，动态调整部分token改由其他专家处理，以缓解网络拥堵，缺点是选择其他专家会影响准确性
+        - Lina 系统采用两阶段调度：在每层MoE计算前预测各专家即将接收的token量（基于跨层路由的模式；提前为热门专家申请更多GPU资源或副本，从而在通信开始前完成资源重分配，提升并行效率；在推理阶段动态复制热门专家到多卡并优先调度拥塞的all-to-all流量
 - Motivation？
-    - 使用expert分组的方式，可以减少网络开销，但是会导致负载聚集 => 可能导致部分GPU block整体inference性能
+    - 使用expert分组的方式，可以减少网络开销，但是会导致负载聚集 => 可能导致部分GPU block整体inference性能 (expert分组需要有创新)
     - 为了负载均衡，需要将高负载的experts分开部署，但是这样会增加网络传输开销(top K)
-    - 在这两者之间做trade-off；最大话系统的吞吐量
+    - 在这两者之间做trade-off；最大化系统的吞吐量
+    - 结合：expert分组 + 动态调度 + 带宽感知
+
 - 有哪些挑战？
-    - all-2-all 数据传输开销
-    - experts的负载动态变化
-    - 考虑到intra-node/inter-node之间的带宽差异
+    - GPU 负载失衡与资源空闲并存
+        
+    - 跨节点 all-to-all 通信瓶颈
+    - 专家激活分布偏斜与尾部延迟
+        - MoE 路由通常遵循长尾分布：少数专家可能接收了大部分的token，而多数专家只处理少量token。当某个专家在某一时刻被过多token选中时，会出现队列堵塞现象——该专家所在GPU需要依次处理海量token，其计算延迟成为系统的尾部延迟决定因素。即使其他专家很快处理完各自token，仍需等待最繁忙专家完成才能进行下一层/下一步。
+        - 传统解决办法是设置每个专家的容量上限（如Switch Transformer使用 capacity factor 限制每专家每批最多处理多少token），超出的token要么被丢弃要么延后处理。但丢弃会影响模型准确率，延后则损及延迟SLO，均非理想方案。
+
 - 设计细节？
     - 考虑pipeline parallelism，将experts computes 和 data transfer overlap起来
     - 如何实现动态调整 + 带宽调整
+
 - Motivation Tests
     - 采用现有的expert cluster方法下，GPU的负载空闲情况
     - all-2-all data transfer开销的占比
