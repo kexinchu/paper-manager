@@ -16,7 +16,7 @@
     - light-weight + real-time
     - 支持根据场景定制privacy 类型(例如：企业内部数据,特定领域术语等)；适应复杂也现实场景
 - 如何管理 private/public KV-Cache
-    - 避免数据的重复存储：优化 HBM/DRAM/SSD 资源占用
+    - 避免数据的重复存储：优化 HBM/DRAM 资源占用
     - 支持快速的 prefix-prompt Search；避免给LLM inference造成penalty
         - 支持自适应node 合并，降低search深度
     - 支持快速的 数据插入 (private/public insert) 和 自适应的数据删除
@@ -46,31 +46,27 @@
         - 三级(跨block/对话上下文综合校验)
             - 针对二级检测中处于灰度区间(0.3 < p < 0.7)的block，并不立即标记public，而是引入 "cross block 关联检测"
             - 增加本次请求的上下文，使用LLM评估是否包含隐私信息 (构造prompt)
+        - 实验： 1，2，3分别的比例；真实的数据集，构造一个trace数据集(3的开销较大的情况下，整体性能也是正向的)
         - 仅在创建 KV-Cache 缓存node时使用，一次分类，多次使用，减少分类频率和开销
         - 为避免分类过程影响当前的 KV-Cache Sharing; 使用异步pipeline的方式执行：
             - 默认KV-Cache node创建之后，标记为private
             - 异步触发 hybrid detection；使用batch方法合并多个请求，提高detection效率；
             - 逐步需要可reuse/sharing的public block状态
             - 当node确定private状态时，其子节点直接被标记为private
+            - pipeline 在第一层的prefill执行之后就可以检测 (40GB -> 10GB; sglang的address逻辑)
 
 - 2. Cache management(public/private)
     - 目标：动态管理private/public缓存，避免冗余存储，同时实现快速的prefix-prompt search，插入/删除
-    - 思路：<!-- 三级异构存储结构(HBM-DRAM-SSD) -->
-        <!-- - KV-Cache 分层放置 (hot/cold)
-            - HBM(GPU显存)：存放当前GPU执行中的request 所依赖的KV-Cache
-            - DRAM: 缓存 热点public KV-Cache 和 最近活跃的private KV-Cache（可以分出DRAM 总容量的 X% 来存储private KV-Cache, 使用LRU来管理）。
-            - SSD：持久化 cold private KV-Cache 或 historical public KV-Cache，当DRAM空间紧张时将entry写入SSD，以便后续reuse时快速加载。 -->
+    - 思路：
         - 统一管理private/public prefix tree.
         - private node因为只被同一个user使用，不会出现"分叉"；为实现快速search，"逻辑上合并sub-tree"
         - 回收时，考虑到单个用户的request重启 + private reuse周期长的情况，在eviction时并不一次性删除全部子树，而是从leaf node逐级删除 (渐进式eviction)
 
 ```shell
         ...
-    |private-1|
-    # |node-1 (pri)|
-    # |node-2|
-    # |node-3|
-    |node-4|
+    |private-1 tag=merge ([cache-0, cache-1, cache-2])|
+    # |node-1 tag=invalid (private-1)|
+    # |node-2 tag=invalid (private-1)|
 ```
 
 - 3. 针对检测失败的兜底与攻击识别: 
@@ -85,7 +81,20 @@
             - if u_pre 较大，说明当前block被多个user使用，认定为公共前缀，不做修改
             - if u_pre 较小(=1)，说明当前block仅被单一user使用，认定可能包含隐私信息，降级为private
 
-
+## 修改建议 20250610
+- threat model 最后两段不要写，只写攻击者怎么攻击 + 攻击者是什么？
+        - 对手的cpacity
+        - 对手的目的
+        - 对手可能的攻击行为
+    - related work + motivation 放在一起
+        - 两段放在motivation
+        - 有一些攻击的工作，已经在攻击了
+        - 分析一下现有的防守方式；
+    - challenges 放到design的第一部分
+    - design 后面的部分和challenge一一对应
+    - 可以将challenge 中security部分放到一起，再去讲性能
+    - NDSS -> 主要强调security
+    - attack -> access rate
 
 
 ## 大家在研究什么
